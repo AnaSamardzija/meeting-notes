@@ -106,11 +106,35 @@ fastapi dev app/main.py
 
 All commands are run from the `frontend/` folder.
 
+Create the frontend `.env` file from the example:
+
+```bash
+# Windows (PowerShell)
+Copy-Item .env.example .env
+
+# macOS / Linux
+cp .env.example .env
+```
+
+| Variable       | Example                 | Description                 |
+|----------------|-------------------------|-----------------------------|
+| `VITE_API_URL` | `http://localhost:8000` | Base URL of the backend API |
+
+Variables with the `VITE_` prefix are embedded in the JavaScript that is sent to
+the browser, so they are public: never put secrets in `frontend/.env`. Restart
+`npm run dev` after changing this file.
+
+Install the dependencies and start the development server:
+
 ```bash
 npm install
 npm run dev
 ```
 
 - App: http://localhost:5173/
+
+The home page shows whether the backend is reachable. Open the app at
+`http://localhost:5173` (not `http://127.0.0.1:5173`), because that is the origin
+allowed by `CORS_ORIGINS`.
 
 The backend and the frontend run independently, each in its own terminal.
