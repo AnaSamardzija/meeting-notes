@@ -96,6 +96,8 @@ root that is used for the database (see above):
 | `DB_HOST`        | `localhost`             | Host of the database                                      |
 | `DB_PORT`        | `3306`                  | Port of the database                                      |
 | `CORS_ORIGINS`   | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
+| `UPLOAD_DIR`     | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
+| `MAX_UPLOAD_MB`  | `500`                   | Largest video that can be uploaded, in megabytes          |
 
 The backend builds the database URL from these values, so the password is
 written in one place only.
