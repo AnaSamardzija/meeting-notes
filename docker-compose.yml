@@ -1,0 +1,23 @@
+services:
+  db:
+    image: mysql:8.4
+    ports:
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
+    container_name: meeting-notes-db-container
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    restart: unless-stopped
+    volumes:
+      - meeting-notes-db-volume:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  meeting-notes-db-volume:

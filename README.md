@@ -16,6 +16,58 @@ frontend/   React + Vite application (JavaScript)
 
 - Python 3.14
 - Node.js 24 (with npm)
+- Docker Desktop (for the database)
+
+## Database
+
+MySQL runs in a Docker container. Only the database is dockerized for now; the
+backend and the frontend run locally. All commands are run from the project root,
+with Docker Desktop running.
+
+Create your `.env` file from the example and set your own passwords in it:
+
+```bash
+# Windows (PowerShell)
+Copy-Item .env.example .env
+
+# macOS / Linux
+cp .env.example .env
+```
+
+Start the database and check that it is ready:
+
+```bash
+docker compose up -d
+docker compose ps
+```
+
+The database is ready when the status shows `healthy`. If it does not get there,
+check the logs with `docker compose logs db`.
+
+Connection details:
+
+| Setting  | Value                                      |
+|----------|--------------------------------------------|
+| Host     | `localhost`                                |
+| Port     | `DB_PORT` from `.env` (3306 by default)    |
+| Database | `MYSQL_DATABASE` from `.env`               |
+| User     | `MYSQL_USER` from `.env`                   |
+| Password | `MYSQL_PASSWORD` from `.env`               |
+
+Stop the database:
+
+```bash
+docker compose down      # removes the container, the data is kept
+docker compose down -v   # removes the container and deletes all data
+```
+
+Notes:
+
+- The data is stored in a Docker volume, so it survives `docker compose down`.
+- The `MYSQL_*` values are applied only on the first start, when the volume is
+  empty. If you change them in `.env` later, run `docker compose down -v` and
+  start the database again (this deletes the data).
+- If port 3306 is already in use on your machine, change `DB_PORT` in `.env`.
 
 ## Backend
 
