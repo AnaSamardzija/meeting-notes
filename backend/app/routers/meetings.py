@@ -2,16 +2,53 @@ import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import Meeting
-from app.schemas import MeetingRead
+from app.models import ActionItem, Meeting
+from app.schemas import MeetingDetail, MeetingListItem, MeetingRead
 from app.storage import ALLOWED_EXTENSIONS, FileTooLargeError, save_upload
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
+
+
+@router.get("", response_model=list[MeetingListItem])
+def list_meetings(db: Session = Depends(get_db)):
+    # Counted by the database, one subquery per row of the same SELECT, so the
+    # action items themselves are never loaded
+    action_item_count = (
+        select(func.count(ActionItem.id))
+        .where(ActionItem.meeting_id == Meeting.id)
+        .scalar_subquery()
+    )
+    # Only the columns the list shows: the transcript is not read at all
+    query = select(
+        Meeting.id,
+        Meeting.original_filename,
+        Meeting.title,
+        Meeting.status,
+        Meeting.uploaded_at,
+        action_item_count.label("action_item_count"),
+    ).order_by(
+        # uploaded_at has a precision of one second, so id breaks the tie
+        Meeting.uploaded_at.desc(),
+        Meeting.id.desc(),
+    )
+    return db.execute(query).all()
+
+
+@router.get("/{meeting_id}", response_model=MeetingDetail)
+def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
+    meeting = db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found"
+        )
+    # action_items are loaded by a second query when the response is built
+    return meeting
 
 
 @router.post("", response_model=MeetingRead, status_code=status.HTTP_202_ACCEPTED)
