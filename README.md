@@ -88,19 +88,56 @@ source .venv/bin/activate
 The backend reads its configuration from the same `.env` file in the project
 root that is used for the database (see above):
 
-| Variable       | Default                 | Description                                               |
-|----------------|-------------------------|-----------------------------------------------------------|
-| `CORS_ORIGINS` | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
+| Variable         | Default                 | Description                                               |
+|------------------|-------------------------|-----------------------------------------------------------|
+| `MYSQL_DATABASE` | required                | Database name                                             |
+| `MYSQL_USER`     | required                | Database user                                             |
+| `MYSQL_PASSWORD` | required                | Password of the database user                             |
+| `DB_HOST`        | `localhost`             | Host of the database                                      |
+| `DB_PORT`        | `3306`                  | Port of the database                                      |
+| `CORS_ORIGINS`   | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
 
-Install the dependencies and start the development server:
+The backend builds the database URL from these values, so the password is
+written in one place only.
+
+Install the dependencies, create the database tables and start the development
+server (the database must be running):
 
 ```bash
 pip install -r requirements.txt
+alembic upgrade head
 fastapi dev app/main.py
 ```
 
 - Health check: http://localhost:8000/api/health
 - Swagger documentation: http://localhost:8000/docs
+
+The health check also tests the database connection. It returns `200` with
+`{"status": "ok", "database": "ok"}`, or `503` if the database is not available.
+
+### Database migrations
+
+The tables are created and changed with [Alembic](https://alembic.sqlalchemy.org/)
+migrations, stored in `backend/alembic/versions/`. Alembic takes the database
+connection from the same `.env` file as the backend, not from `alembic.ini`.
+
+Run these from the `backend/` folder, with the virtual environment activated and
+the database running:
+
+```bash
+alembic upgrade head     # apply all migrations that are not applied yet
+alembic current          # show which migration the database is on
+alembic downgrade -1     # undo the last migration
+alembic downgrade base   # undo all migrations (drops the tables and their data)
+```
+
+After changing a model in `app/models.py`, generate a new migration, review the
+generated file and apply it:
+
+```bash
+alembic revision --autogenerate -m "describe the change"
+alembic upgrade head
+```
 
 ## Frontend
 
@@ -133,7 +170,8 @@ npm run dev
 
 - App: http://localhost:5173/
 
-The home page shows whether the backend is reachable. Open the app at
+The home page shows whether the backend is reachable and whether the backend can
+reach the database. Open the app at
 `http://localhost:5173` (not `http://127.0.0.1:5173`), because that is the origin
 allowed by `CORS_ORIGINS`.
 

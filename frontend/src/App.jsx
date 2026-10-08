@@ -4,13 +4,17 @@ import { getHealth } from './api'
 const API_URL = import.meta.env.VITE_API_URL
 
 function App() {
-  // 'loading' | 'ok' | 'error'
+  // 'loading' | 'ok' | 'db-error' | 'error'
   const [status, setStatus] = useState('loading')
 
   useEffect(() => {
     getHealth()
       .then((data) => setStatus(data?.status === 'ok' ? 'ok' : 'error'))
-      .catch(() => setStatus('error'))
+      // error.response exists only when the backend answered. 503 from the
+      // health check means the backend runs but cannot reach the database.
+      .catch((error) =>
+        setStatus(error.response?.status === 503 ? 'db-error' : 'error'),
+      )
   }, [])
 
   return (
@@ -37,6 +41,15 @@ function BackendStatus({ status }) {
 
   if (status === 'ok') {
     return <p className="status-ok">Backend is available.</p>
+  }
+
+  if (status === 'db-error') {
+    return (
+      <p className="status-error">
+        Backend is running, but the database is not available. Start it with
+        docker compose up -d.
+      </p>
+    )
   }
 
   // The browser does not tell JavaScript whether the request failed because
