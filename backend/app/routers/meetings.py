@@ -52,23 +52,33 @@ def upload_meeting(file: UploadFile, db: Session = Depends(get_db)):
         db.flush()
 
         stored_name = f"original{extension}"
-        meeting_dir = settings.upload_path / str(meeting.id)
-        meeting_dir.mkdir(parents=True, exist_ok=True)
+        new_dir = settings.upload_path / str(meeting.id)
+        # exist_ok=False: a folder that is already there belongs to something
+        # else (e.g. the database was reset but the uploads were kept), so it
+        # must not be reused. meeting_dir is set only after mkdir succeeds, so
+        # the cleanup below never deletes a folder this request did not create.
+        new_dir.mkdir(parents=True, exist_ok=False)
+        meeting_dir = new_dir
         save_upload(file.file, meeting_dir / stored_name, settings.max_upload_bytes)
 
         # Relative to UPLOAD_DIR and always with "/", on Windows too
         meeting.file_path = f"{meeting.id}/{stored_name}"
         db.commit()
-    except (FileTooLargeError, OSError, SQLAlchemyError) as error:
-        # Leave nothing behind: neither the row nor a partial file
-        db.rollback()
+    except Exception as error:
+        # Leave nothing behind, whatever went wrong: neither the row nor a
+        # partial file
         if meeting_dir is not None:
             shutil.rmtree(meeting_dir, ignore_errors=True)
+        db.rollback()
         if isinstance(error, FileTooLargeError):
             raise too_large
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not save the uploaded file",
-        )
+        if isinstance(error, (OSError, SQLAlchemyError)):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not save the uploaded file",
+            )
+        # Anything unexpected is a bug: re-raise it so FastAPI logs the
+        # traceback and answers with 500
+        raise
 
     return meeting
