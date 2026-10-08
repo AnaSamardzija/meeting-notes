@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # Longest time ffmpeg may take to extract the audio from one video
     ffmpeg_timeout_seconds: int = 600
 
+    # Gemini. The key has no default on purpose, like the MYSQL_* values
+    gemini_api_key: str
+    gemini_model: str = "gemini-3.8-flash"
+
     @property
     def upload_path(self) -> Path:
         # Joining with an absolute path returns that absolute path unchanged,
