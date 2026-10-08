@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "deny": [
+      "Read(./.env)",
+      "Read(./backend/.env)",
+      "Read(./frontend/.env)"
+    ]
+  }
+}
