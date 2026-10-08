@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     upload_dir: Path = Path("uploads")
     max_upload_mb: int = 500
 
+    # Longest time ffmpeg may take to extract the audio from one video
+    ffmpeg_timeout_seconds: int = 600
+
     @property
     def upload_path(self) -> Path:
         # Joining with an absolute path returns that absolute path unchanged,
