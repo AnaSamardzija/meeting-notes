@@ -85,6 +85,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
+The backend reads its configuration from the same `.env` file in the project
+root that is used for the database (see above):
+
+| Variable       | Default                 | Description                                               |
+|----------------|-------------------------|-----------------------------------------------------------|
+| `CORS_ORIGINS` | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
+
 Install the dependencies and start the development server:
 
 ```bash
@@ -92,7 +99,7 @@ pip install -r requirements.txt
 fastapi dev app/main.py
 ```
 
-- API: http://localhost:8000/
+- Health check: http://localhost:8000/api/health
 - Swagger documentation: http://localhost:8000/docs
 
 ## Frontend
