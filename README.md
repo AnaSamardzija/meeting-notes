@@ -17,6 +17,26 @@ frontend/   React + Vite application (JavaScript)
 - Python 3.14
 - Node.js 24 (with npm)
 - Docker Desktop (for the database)
+- ffmpeg (the backend uses it to extract the audio from the uploaded video)
+
+Install ffmpeg and make sure it is on the `PATH`:
+
+```bash
+# Windows (PowerShell)
+winget install Gyan.FFmpeg
+
+# macOS
+brew install ffmpeg
+
+# Linux (Debian / Ubuntu)
+sudo apt install ffmpeg
+```
+
+Open a new terminal and check the installation:
+
+```bash
+ffmpeg -version
+```
 
 ## Database
 
@@ -88,16 +108,17 @@ source .venv/bin/activate
 The backend reads its configuration from the same `.env` file in the project
 root that is used for the database (see above):
 
-| Variable         | Default                 | Description                                               |
-|------------------|-------------------------|-----------------------------------------------------------|
-| `MYSQL_DATABASE` | required                | Database name                                             |
-| `MYSQL_USER`     | required                | Database user                                             |
-| `MYSQL_PASSWORD` | required                | Password of the database user                             |
-| `DB_HOST`        | `localhost`             | Host of the database                                      |
-| `DB_PORT`        | `3306`                  | Port of the database                                      |
-| `CORS_ORIGINS`   | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
-| `UPLOAD_DIR`     | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
-| `MAX_UPLOAD_MB`  | `500`                   | Largest video that can be uploaded, in megabytes          |
+| Variable                 | Default                 | Description                                               |
+|--------------------------|-------------------------|-----------------------------------------------------------|
+| `MYSQL_DATABASE`         | required                | Database name                                             |
+| `MYSQL_USER`             | required                | Database user                                             |
+| `MYSQL_PASSWORD`         | required                | Password of the database user                             |
+| `DB_HOST`                | `localhost`             | Host of the database                                      |
+| `DB_PORT`                | `3306`                  | Port of the database                                      |
+| `CORS_ORIGINS`           | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
+| `UPLOAD_DIR`             | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
+| `MAX_UPLOAD_MB`          | `500`                   | Largest video that can be uploaded, in megabytes          |
+| `FFMPEG_TIMEOUT_SECONDS` | `600`                   | Longest time ffmpeg may take on one video, in seconds     |
 
 The backend builds the database URL from these values, so the password is
 written in one place only.
