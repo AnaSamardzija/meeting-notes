@@ -119,9 +119,14 @@ root that is used for the database (see above):
 | `UPLOAD_DIR`             | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
 | `MAX_UPLOAD_MB`          | `500`                   | Largest video that can be uploaded, in megabytes          |
 | `FFMPEG_TIMEOUT_SECONDS` | `600`                   | Longest time ffmpeg may take on one video, in seconds     |
+| `GEMINI_API_KEY`         | required                | Google Gemini API key                                     |
+| `GEMINI_MODEL`           | `gemini-3.8-flash`      | Gemini model for the transcription and the summary        |
 
 The backend builds the database URL from these values, so the password is
 written in one place only.
+
+Create a Gemini API key in [Google AI Studio](https://aistudio.google.com/apikey)
+and set it as `GEMINI_API_KEY` in `.env`. The backend does not start without it.
 
 Install the dependencies, create the database tables and start the development
 server (the database must be running):
