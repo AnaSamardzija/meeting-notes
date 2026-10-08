@@ -5,7 +5,8 @@ from sqlalchemy import URL
 
 # .env in the project root (shared with docker compose), regardless of the
 # directory the server is started from
-ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+ENV_FILE = BACKEND_DIR.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -24,6 +25,20 @@ class Settings(BaseSettings):
     mysql_database: str
     db_host: str = "localhost"
     db_port: int = 3306
+
+    # Uploads. A relative UPLOAD_DIR is resolved from the backend/ folder
+    upload_dir: Path = Path("uploads")
+    max_upload_mb: int = 500
+
+    @property
+    def upload_path(self) -> Path:
+        # Joining with an absolute path returns that absolute path unchanged,
+        # so UPLOAD_DIR=/data/uploads (Docker) works as well
+        return BACKEND_DIR / self.upload_dir
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
 
     @property
     def database_url(self) -> URL:
