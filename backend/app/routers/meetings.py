@@ -1,15 +1,27 @@
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import ActionItem, Meeting
+from app.models import ActionItem, Meeting, MeetingStatus
 from app.schemas import MeetingDetail, MeetingListItem, MeetingRead
+from app.services.processing import (
+    IN_PROGRESS_STATUSES,
+    process_meeting,
+    reset_results,
+)
 from app.storage import ALLOWED_EXTENSIONS, FileTooLargeError, save_upload
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
@@ -52,7 +64,11 @@ def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=MeetingRead, status_code=status.HTTP_202_ACCEPTED)
-def upload_meeting(file: UploadFile, db: Session = Depends(get_db)):
+def upload_meeting(
+    file: UploadFile,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     # Only the name itself, without any folders the client may have sent.
     # It is stored in the database and never used as a path on disk.
     original_filename = Path(file.filename or "").name[:255]
@@ -118,4 +134,41 @@ def upload_meeting(file: UploadFile, db: Session = Depends(get_db)):
         # traceback and answers with 500
         raise
 
+    # Runs after the response has been sent, so the upload does not wait for
+    # the processing. Only the id is passed: the session of this request is
+    # closed by then.
+    background_tasks.add_task(process_meeting, meeting.id)
+    return meeting
+
+
+@router.post(
+    "/{meeting_id}/process",
+    response_model=MeetingRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def process_meeting_again(
+    meeting_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    # with_for_update: SELECT ... FOR UPDATE locks the row until the commit
+    # below. A second request for the same meeting waits here and then reads
+    # the new status, so two requests can never both start the processing.
+    meeting = db.get(Meeting, meeting_id, with_for_update=True)
+    if meeting is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found"
+        )
+    if meeting.status in IN_PROGRESS_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The meeting is already being processed",
+        )
+
+    # The old results are removed first, so the action items are not doubled
+    reset_results(meeting)
+    meeting.status = MeetingStatus.TRANSCRIBING
+    db.commit()
+
+    background_tasks.add_task(process_meeting, meeting.id)
     return meeting
