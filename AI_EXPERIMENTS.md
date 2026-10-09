@@ -1,7 +1,7 @@
-# AI notes
+# AI experiments
 
-Notes on working with the AI provider: what was tried, what worked and what
-did not.
+A working journal of the experiments with the AI provider: what was tried, what
+worked and what did not.
 
 ## Gemini trial script
 
