@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # Gemini. The key has no default on purpose, like the MYSQL_* values
     gemini_api_key: str
     gemini_model: str = "gemini-3.8-flash"
+    # Longest time one request to Gemini may take
+    gemini_timeout_seconds: int = 600
 
     @property
     def upload_path(self) -> Path:
