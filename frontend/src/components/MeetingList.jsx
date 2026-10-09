@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getErrorMessage, getMeetings } from '../api'
+import { isInProgress, REFRESH_INTERVAL_MS } from '../meetingStatus'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
 import StatusBadge from './StatusBadge'
@@ -35,6 +36,38 @@ function MeetingList({ reloadKey, onView }) {
       ignore = true
     }
   }, [reloadKey, attempt])
+
+  // true when at least one meeting on the list is still being processed
+  const hasInProgress =
+    meetings !== null &&
+    meetings.some((meeting) => isInProgress(meeting.status))
+
+  // Loads the list again every few seconds while a meeting is being
+  // processed, so its status and its number of action items stay up to date.
+  // The cleanup stops the timer when no meeting is in progress any more
+  // (hasInProgress changes) and when the user leaves the list.
+  useEffect(() => {
+    if (!hasInProgress) {
+      return
+    }
+
+    let ignore = false
+    const timer = setInterval(() => {
+      getMeetings()
+        .then((data) => {
+          if (!ignore) {
+            setMeetings(data)
+          }
+        })
+        // What is on the screen stays, and the next tick tries again
+        .catch(() => {})
+    }, REFRESH_INTERVAL_MS)
+
+    return () => {
+      ignore = true
+      clearInterval(timer)
+    }
+  }, [hasInProgress])
 
   function handleRetry() {
     // Back to the loading state, then the effect runs again

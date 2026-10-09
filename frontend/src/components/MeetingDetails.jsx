@@ -3,18 +3,16 @@ import { getErrorMessage, getMeeting, reprocessMeeting } from '../api'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
 import MeetingContent from './MeetingContent'
+import { isInProgress, REFRESH_INTERVAL_MS } from '../meetingStatus'
 import StatusBadge from './StatusBadge'
 
-// The statuses in which the backend is still working on the meeting, and the
-// text shown for each of them
+// The text shown for each status in which the backend is still working on
+// the meeting
 const PROGRESS_STEPS = {
   uploaded: 'Waiting to start...',
   transcribing: 'Transcribing...',
   summarizing: 'Generating summary...',
 }
-
-// How often the details are loaded again while the meeting is being processed
-const REFRESH_INTERVAL_MS = 3000
 
 // meetingId: the id of the meeting to show.
 // onBack: called when the user clicks the Back button.
@@ -30,9 +28,9 @@ function MeetingDetails({ meetingId, onBack }) {
   const [reprocessing, setReprocessing] = useState(false)
   const [reprocessError, setReprocessError] = useState(null)
 
-  // undefined when the meeting is not loaded yet or is not being processed
-  const progressStep = meeting ? PROGRESS_STEPS[meeting.status] : undefined
-  const inProgress = progressStep !== undefined
+  // false when the meeting is not loaded yet or is not being processed
+  const inProgress = meeting !== null && isInProgress(meeting.status)
+  const progressStep = inProgress ? PROGRESS_STEPS[meeting.status] : undefined
 
   useEffect(() => {
     // Set by the cleanup below when a newer request has started (or the
