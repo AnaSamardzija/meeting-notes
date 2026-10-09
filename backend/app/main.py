@@ -9,6 +9,15 @@ from app.config import settings
 from app.routers import health, meetings
 from app.services.processing import fail_interrupted_meetings
 
+# The base configuration for every logger of the application. The loggers in
+# the other modules (logging.getLogger(__name__)) have no handler of their own:
+# their messages travel up to the root logger, which is set up here. uvicorn
+# keeps its own format for its own messages.
+logging.basicConfig(
+    level=settings.log_level,
+    format="%(asctime)s %(levelname)-8s [%(name)s] %(message)s",
+)
+
 logger = logging.getLogger(__name__)
 
 
