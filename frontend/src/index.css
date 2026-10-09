@@ -1,6 +1,7 @@
 :root {
   --text: #374151;
   --text-h: #111827;
+  --text-muted: #6b7280;
   --bg: #fff;
   --ok: #15803d;
   --error: #b91c1c;
@@ -26,8 +27,53 @@ h1 {
   margin: 0 0 16px;
 }
 
+h2 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0;
+}
+
 p {
   margin: 0 0 8px;
+}
+
+button {
+  font: inherit;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* The children are stacked with the same gap; align-items keeps the button
+   and the file input at their own width instead of stretching them */
+.upload-form,
+.uploaded-meeting {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.upload-form p,
+.uploaded-meeting p {
+  margin: 0;
+}
+
+.file-info {
+  color: var(--text-muted);
+}
+
+.upload-progress {
+  width: 100%;
+}
+
+.upload-progress progress {
+  width: 100%;
+  max-width: 400px;
 }
 
 .status-ok {

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { getHealth } from './api'
+import UploadForm from './UploadForm'
 
 const API_URL = import.meta.env.VITE_API_URL
 
 function App() {
   // 'loading' | 'ok' | 'db-error' | 'error'
   const [status, setStatus] = useState('loading')
+  // The meeting returned by the last successful upload, or null
+  const [uploadedMeeting, setUploadedMeeting] = useState(null)
 
   useEffect(() => {
     getHealth()
@@ -21,7 +24,31 @@ function App() {
     <>
       <h1>Meeting Notes AI</h1>
       <BackendStatus status={status} />
+      {uploadedMeeting ? (
+        <UploadedMeeting
+          meeting={uploadedMeeting}
+          onUploadAnother={() => setUploadedMeeting(null)}
+        />
+      ) : (
+        <UploadForm onUploaded={setUploadedMeeting} />
+      )}
     </>
+  )
+}
+
+// Temporary: shows what the upload returned. The meeting details page will
+// replace it and follow the processing from there.
+function UploadedMeeting({ meeting, onUploadAnother }) {
+  return (
+    <section className="uploaded-meeting">
+      <h2>Meeting #{meeting.id}</h2>
+      <p>File: {meeting.original_filename}</p>
+      <p>Status: {meeting.status}</p>
+      <p>Uploaded: {new Date(meeting.uploaded_at).toLocaleString()}</p>
+      <button type="button" onClick={onUploadAnother}>
+        Upload another
+      </button>
+    </section>
   )
 }
 
