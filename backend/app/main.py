@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
+from app.error_handlers import register_error_handlers
 from app.routers import health, meetings
 from app.services.processing import fail_interrupted_meetings
 
@@ -46,6 +47,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+register_error_handlers(app)
 
 app.include_router(health.router, prefix="/api")
 app.include_router(meetings.router, prefix="/api")
