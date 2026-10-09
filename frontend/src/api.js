@@ -16,6 +16,20 @@ export async function getMeetings() {
   return response.data
 }
 
+// Returns everything about one meeting: the transcript, the summary, the key
+// topics and the action items. They are empty until the processing is done.
+export async function getMeeting(id) {
+  const response = await api.get(`/api/meetings/${id}`)
+  return response.data
+}
+
+// Starts the processing of the meeting again and returns the meeting with its
+// new status. The backend answers at once; the processing runs after that.
+export async function reprocessMeeting(id) {
+  const response = await api.post(`/api/meetings/${id}/process`)
+  return response.data
+}
+
 // Sends the video as multipart/form-data and returns the created meeting.
 // onProgress is called with the percentage (0-100) sent so far.
 export async function uploadMeeting(file, onProgress) {

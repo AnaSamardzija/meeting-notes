@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getHealth } from './api'
+import MeetingDetails from './MeetingDetails'
 import MeetingList from './MeetingList'
 import UploadForm from './UploadForm'
 
@@ -14,8 +15,8 @@ function App() {
   const [lastUploaded, setLastUploaded] = useState(null)
   // Increased after every upload, which makes MeetingList load again
   const [reloadKey, setReloadKey] = useState(0)
-  // The meeting whose View button was clicked, or null for the list
-  const [selectedMeeting, setSelectedMeeting] = useState(null)
+  // The id of the meeting whose View button was clicked, or null for the list
+  const [selectedMeetingId, setSelectedMeetingId] = useState(null)
 
   useEffect(() => {
     getHealth()
@@ -49,10 +50,10 @@ function App() {
       <main className="container py-4">
         <BackendStatus status={status} />
 
-        {selectedMeeting ? (
-          <SelectedMeeting
-            meeting={selectedMeeting}
-            onBack={() => setSelectedMeeting(null)}
+        {selectedMeetingId !== null ? (
+          <MeetingDetails
+            meetingId={selectedMeetingId}
+            onBack={() => setSelectedMeetingId(null)}
           />
         ) : (
           <div className="card shadow-sm">
@@ -84,34 +85,15 @@ function App() {
                 </div>
               )}
 
-              <MeetingList reloadKey={reloadKey} onView={setSelectedMeeting} />
+              <MeetingList
+                reloadKey={reloadKey}
+                onView={setSelectedMeetingId}
+              />
             </div>
           </div>
         )}
       </main>
     </>
-  )
-}
-
-// Temporary: shows the row that was clicked in the list. The meeting details
-// page will replace it and follow the processing from there.
-function SelectedMeeting({ meeting, onBack }) {
-  return (
-    <div className="card shadow-sm">
-      <div className="card-body">
-        <h2 className="h5">{meeting.title ?? meeting.original_filename}</h2>
-        <p className="mb-1">File: {meeting.original_filename}</p>
-        <p className="mb-1">Status: {meeting.status}</p>
-        <p>Uploaded: {new Date(meeting.uploaded_at).toLocaleString()}</p>
-        <button
-          type="button"
-          className="btn btn-outline-secondary"
-          onClick={onBack}
-        >
-          Back
-        </button>
-      </div>
-    </div>
   )
 }
 

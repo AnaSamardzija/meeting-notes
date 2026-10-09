@@ -4,3 +4,11 @@
 body {
   background-color: var(--bs-tertiary-bg);
 }
+
+/* The transcript of a meeting: a long one scrolls inside its own box instead
+   of stretching the page. pre-wrap keeps the line breaks of the text. */
+.transcript {
+  max-height: 24rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
