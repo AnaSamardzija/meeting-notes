@@ -116,6 +116,7 @@ root that is used for the database (see above):
 | `DB_HOST`                | `localhost`             | Host of the database                                      |
 | `DB_PORT`                | `3306`                  | Port of the database                                      |
 | `CORS_ORIGINS`           | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
+| `LOG_LEVEL`              | `INFO`                  | Lowest level of the log messages the backend prints       |
 | `UPLOAD_DIR`             | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
 | `MAX_UPLOAD_MB`          | `500`                   | Largest video that can be uploaded, in megabytes          |
 | `FFMPEG_TIMEOUT_SECONDS` | `600`                   | Longest time ffmpeg may take on one video, in seconds     |

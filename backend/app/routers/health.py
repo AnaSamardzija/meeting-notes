@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -10,12 +9,8 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 def health(db: Session = Depends(get_db)):
-    try:
-        db.execute(text("SELECT 1"))
-    except SQLAlchemyError:
-        # The server itself works, but something it depends on does not
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database is not available",
-        )
+    # If the database cannot be reached, this raises OperationalError, which
+    # app/error_handlers.py turns into 503: the server itself works, but
+    # something it depends on does not
+    db.execute(text("SELECT 1"))
     return {"status": "ok", "database": "ok"}

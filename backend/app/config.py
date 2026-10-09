@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
@@ -17,6 +18,10 @@ class Settings(BaseSettings):
 
     # Origins that are allowed to call the API (CORS), separated by commas
     cors_origins: str = "http://localhost:5173"
+
+    # Lowest level of the log messages that are printed. Literal: any other
+    # value in .env stops the app at startup with a clear error
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     # Database. The MYSQL_* values have no default on purpose: the app fails
     # at startup with a clear error if they are missing from .env
