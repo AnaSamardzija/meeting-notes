@@ -183,9 +183,10 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-| Variable       | Example                 | Description                 |
-|----------------|-------------------------|-----------------------------|
-| `VITE_API_URL` | `http://localhost:8000` | Base URL of the backend API |
+| Variable             | Example                 | Description                                                            |
+|----------------------|-------------------------|------------------------------------------------------------------------|
+| `VITE_API_URL`       | `http://localhost:8000` | Base URL of the backend API                                            |
+| `VITE_MAX_UPLOAD_MB` | `500`                   | Largest video the form accepts, in megabytes; same as `MAX_UPLOAD_MB` |
 
 Variables with the `VITE_` prefix are embedded in the JavaScript that is sent to
 the browser, so they are public: never put secrets in `frontend/.env`. Restart
