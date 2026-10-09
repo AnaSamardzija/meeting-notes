@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getMeetings } from '../api'
+import ErrorAlert from './ErrorAlert'
+import Loading from './Loading'
 import StatusBadge from './StatusBadge'
 
 const API_URL = import.meta.env.VITE_API_URL
@@ -53,27 +55,11 @@ function MeetingList({ reloadKey, onView }) {
   }
 
   if (error) {
-    return (
-      <div className="alert alert-danger mb-0" role="alert">
-        <p>{error}</p>
-        <button
-          type="button"
-          className="btn btn-outline-danger btn-sm"
-          onClick={handleRetry}
-        >
-          Try again
-        </button>
-      </div>
-    )
+    return <ErrorAlert message={error} onRetry={handleRetry} />
   }
 
   if (meetings === null) {
-    return (
-      <div className="d-flex align-items-center gap-2 text-secondary">
-        <div className="spinner-border spinner-border-sm" aria-hidden="true" />
-        <span role="status">Loading meetings...</span>
-      </div>
-    )
+    return <Loading text="Loading meetings..." />
   }
 
   if (meetings.length === 0) {

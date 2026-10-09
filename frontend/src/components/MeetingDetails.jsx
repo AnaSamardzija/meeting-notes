@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getMeeting, reprocessMeeting } from '../api'
+import ErrorAlert from './ErrorAlert'
+import Loading from './Loading'
 import MeetingContent from './MeetingContent'
 import StatusBadge from './StatusBadge'
 
@@ -165,24 +167,9 @@ function MeetingDetails({ meetingId, onBack }) {
 
       <div className="card-body">
         {error ? (
-          <div className="alert alert-danger mb-0" role="alert">
-            <p>{error}</p>
-            <button
-              type="button"
-              className="btn btn-outline-danger btn-sm"
-              onClick={handleRetry}
-            >
-              Try again
-            </button>
-          </div>
+          <ErrorAlert message={error} onRetry={handleRetry} />
         ) : meeting === null ? (
-          <div className="d-flex align-items-center gap-2 text-secondary">
-            <div
-              className="spinner-border spinner-border-sm"
-              aria-hidden="true"
-            />
-            <span role="status">Loading meeting...</span>
-          </div>
+          <Loading text="Loading meeting..." />
         ) : (
           <>
             {inProgress && (
