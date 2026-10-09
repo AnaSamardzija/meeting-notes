@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import { getMeeting, reprocessMeeting } from '../api'
+import { getErrorMessage, getMeeting, reprocessMeeting } from '../api'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
 import MeetingContent from './MeetingContent'
 import StatusBadge from './StatusBadge'
-
-const API_URL = import.meta.env.VITE_API_URL
 
 // The statuses in which the backend is still working on the meeting, and the
 // text shown for each of them
@@ -17,30 +15,6 @@ const PROGRESS_STEPS = {
 
 // How often the details are loaded again while the meeting is being processed
 const REFRESH_INTERVAL_MS = 3000
-
-// Turns an error of the details request into a message for the user.
-function loadErrorMessage(error) {
-  // error.response exists only when the backend answered
-  if (!error.response) {
-    return `Backend is not available at ${API_URL}. Make sure it is running and try again.`
-  }
-  if (error.response.status === 404) {
-    return 'Meeting not found.'
-  }
-  return `Could not load the meeting (HTTP ${error.response.status}).`
-}
-
-// Turns an error of the "process again" request into a message for the user.
-function reprocessErrorMessage(error) {
-  if (!error.response) {
-    return `Backend is not available at ${API_URL}. Make sure it is running and try again.`
-  }
-
-  const { status, data } = error.response
-  // The backend sends {"detail": "..."}
-  const detail = typeof data?.detail === 'string' ? data.detail : null
-  return detail ?? `Could not start the processing (HTTP ${status}).`
-}
 
 // meetingId: the id of the meeting to show.
 // onBack: called when the user clicks the Back button.
@@ -74,7 +48,7 @@ function MeetingDetails({ meetingId, onBack }) {
       })
       .catch((error) => {
         if (!ignore) {
-          setError(loadErrorMessage(error))
+          setError(getErrorMessage(error, 'Could not load the meeting'))
         }
       })
 
@@ -131,7 +105,9 @@ function MeetingDetails({ meetingId, onBack }) {
       // 409 means the meeting is already being processed (e.g. it was started
       // from another tab), so the details are only loaded again
       if (error.response?.status !== 409) {
-        setReprocessError(reprocessErrorMessage(error))
+        setReprocessError(
+          getErrorMessage(error, 'Could not start the processing'),
+        )
         setReprocessing(false)
         return
       }

@@ -1,9 +1,30 @@
 import axios from 'axios'
 
-// The only place in the frontend that talks to the backend.
+// The only place in the frontend that talks to the backend, and the only one
+// that reads its address.
+export const API_URL = import.meta.env.VITE_API_URL
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: API_URL,
 })
+
+// Turns an error of a request into a message for the user.
+// fallback: what could not be done, e.g. 'Could not load the meetings'. It is
+// used when the backend answered without a message of its own.
+export function getErrorMessage(error, fallback) {
+  // error.response exists only when the backend answered
+  if (!error.response) {
+    return `Backend is not available at ${API_URL}. Make sure it is running and try again.`
+  }
+
+  const { status, data } = error.response
+  // The backend sends {"detail": "..."}, written for the user. For validation
+  // errors (422) detail is a list, which is not shown.
+  if (typeof data?.detail === 'string') {
+    return data.detail
+  }
+  return `${fallback} (HTTP ${status}).`
+}
 
 export async function getHealth() {
   const response = await api.get('/api/health')

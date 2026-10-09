@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL
+import { API_URL } from '../api'
 
 // status: the result of the health check in App.jsx:
 // 'loading' | 'ok' | 'db-error' | 'error'

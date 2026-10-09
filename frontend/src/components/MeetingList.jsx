@@ -1,19 +1,8 @@
 import { useEffect, useState } from 'react'
-import { getMeetings } from '../api'
+import { getErrorMessage, getMeetings } from '../api'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
 import StatusBadge from './StatusBadge'
-
-const API_URL = import.meta.env.VITE_API_URL
-
-// Turns an error of the list request into a message for the user.
-function listErrorMessage(error) {
-  // error.response exists only when the backend answered
-  if (!error.response) {
-    return `Backend is not available at ${API_URL}. Make sure it is running and try again.`
-  }
-  return `Could not load the meetings (HTTP ${error.response.status}).`
-}
 
 // reloadKey: the list is loaded again every time this number changes.
 // onView: called with the id of the meeting whose View button was clicked.
@@ -38,7 +27,7 @@ function MeetingList({ reloadKey, onView }) {
       })
       .catch((error) => {
         if (!ignore) {
-          setError(listErrorMessage(error))
+          setError(getErrorMessage(error, 'Could not load the meetings'))
         }
       })
 
