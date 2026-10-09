@@ -1,8 +1,20 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel, ConfigDict
 
 from app.models import MeetingStatus
+
+
+def _as_utc(value: datetime) -> datetime:
+    # The database returns times without a time zone, and all of them are UTC
+    # (see app/models.py)
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
+
+# Sent as "2026-10-09T10:00:00Z". Without the "Z" the browser would read the
+# time as local time and show it shifted.
+UtcDateTime = Annotated[datetime, AfterValidator(_as_utc)]
 
 
 class MeetingRead(BaseModel):
@@ -17,7 +29,7 @@ class MeetingRead(BaseModel):
     original_filename: str
     title: str | None
     status: MeetingStatus
-    uploaded_at: datetime
+    uploaded_at: UtcDateTime
 
 
 class MeetingListItem(MeetingRead):
@@ -44,5 +56,5 @@ class MeetingDetail(MeetingRead):
     transcript: str | None
     summary: str | None
     key_topics: list[str] | None
-    processed_at: datetime | None
+    processed_at: UtcDateTime | None
     action_items: list[ActionItemRead]

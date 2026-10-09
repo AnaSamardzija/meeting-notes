@@ -10,6 +10,12 @@ export async function getHealth() {
   return response.data
 }
 
+// Returns the rows of the meetings list, the newest first.
+export async function getMeetings() {
+  const response = await api.get('/api/meetings')
+  return response.data
+}
+
 // Sends the video as multipart/form-data and returns the created meeting.
 // onProgress is called with the percentage (0-100) sent so far.
 export async function uploadMeeting(file, onProgress) {
