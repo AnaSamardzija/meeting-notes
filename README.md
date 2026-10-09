@@ -121,6 +121,7 @@ root that is used for the database (see above):
 | `FFMPEG_TIMEOUT_SECONDS` | `600`                   | Longest time ffmpeg may take on one video, in seconds     |
 | `GEMINI_API_KEY`         | required                | Google Gemini API key                                     |
 | `GEMINI_MODEL`           | `gemini-3.8-flash`      | Gemini model for the transcription and the summary        |
+| `GEMINI_TIMEOUT_SECONDS` | `600`                   | Longest time one request to Gemini may take, in seconds   |
 
 The backend builds the database URL from these values, so the password is
 written in one place only.
