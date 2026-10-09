@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getMeetings } from './api'
+import { getMeetings } from '../api'
 import StatusBadge from './StatusBadge'
 
 const API_URL = import.meta.env.VITE_API_URL
