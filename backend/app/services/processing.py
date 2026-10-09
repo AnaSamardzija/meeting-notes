@@ -15,8 +15,14 @@ logger = logging.getLogger(__name__)
 # The temporary MP3, next to the video in the folder of the meeting
 AUDIO_FILENAME = "audio.mp3"
 
-# A meeting in one of these statuses is being processed right now
-IN_PROGRESS_STATUSES = (MeetingStatus.TRANSCRIBING, MeetingStatus.SUMMARIZING)
+# A meeting in one of these statuses has a background task of its own.
+# uploaded counts too: the task is already scheduled, it has only not written
+# its first status yet
+IN_PROGRESS_STATUSES = (
+    MeetingStatus.UPLOADED,
+    MeetingStatus.TRANSCRIBING,
+    MeetingStatus.SUMMARIZING,
+)
 
 UNEXPECTED_ERROR_MESSAGE = "An unexpected error occurred while processing the meeting"
 INTERRUPTED_MESSAGE = "Processing was interrupted because the server was restarted"
@@ -38,8 +44,12 @@ def reset_results(meeting: Meeting) -> None:
     meeting.action_items.clear()
 
 
-def _mark_failed(db: Session, meeting: Meeting, message: str) -> None:
-    """Store the failed status and the reason on the meeting."""
+def _mark_failed(db: Session, meeting: Meeting, meeting_id: int, message: str) -> None:
+    """Store the failed status and the reason on the meeting.
+
+    meeting_id is passed separately for the log: after a rollback, reading
+    meeting.id asks the database again, and that fails if the database is down.
+    """
     try:
         # Throw away whatever the failed step left half done in the session
         db.rollback()
@@ -49,7 +59,7 @@ def _mark_failed(db: Session, meeting: Meeting, message: str) -> None:
     except SQLAlchemyError:
         # Nothing more can be done here (e.g. the database is down); the
         # meeting is marked as failed the next time the application starts
-        logger.exception("Could not mark meeting %s as failed", meeting.id)
+        logger.exception("Could not mark meeting %s as failed", meeting_id)
 
 
 def process_meeting(meeting_id: int) -> None:
@@ -98,12 +108,12 @@ def process_meeting(meeting_id: int) -> None:
             db.commit()
         except (AudioExtractionError, AIServiceError) as error:
             # The messages of these two errors are written for the user
-            _mark_failed(db, meeting, str(error))
+            _mark_failed(db, meeting, meeting_id, str(error))
         except Exception:
             # Anything else is a bug or a database problem: the details go to
             # the log, the user gets a general message
             logger.exception("Processing of meeting %s failed", meeting_id)
-            _mark_failed(db, meeting, UNEXPECTED_ERROR_MESSAGE)
+            _mark_failed(db, meeting, meeting_id, UNEXPECTED_ERROR_MESSAGE)
         finally:
             # The MP3 is only needed for the transcription
             try:
