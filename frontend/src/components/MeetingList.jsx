@@ -1,37 +1,12 @@
 import { useEffect, useState } from 'react'
-import { getMeetings } from './api'
-
-const API_URL = import.meta.env.VITE_API_URL
-
-// The label and the Bootstrap badge color of each processing status
-const STATUSES = {
-  uploaded: { label: 'Uploaded', className: 'text-bg-secondary' },
-  transcribing: { label: 'Transcribing', className: 'text-bg-primary' },
-  summarizing: { label: 'Summarizing', className: 'text-bg-primary' },
-  done: { label: 'Done', className: 'text-bg-success' },
-  failed: { label: 'Failed', className: 'text-bg-danger' },
-}
-
-function StatusBadge({ status }) {
-  // A status this page does not know yet is shown as it is
-  const { label, className } = STATUSES[status] ?? {
-    label: status,
-    className: 'text-bg-secondary',
-  }
-  return <span className={`badge ${className}`}>{label}</span>
-}
-
-// Turns an error of the list request into a message for the user.
-function listErrorMessage(error) {
-  // error.response exists only when the backend answered
-  if (!error.response) {
-    return `Backend is not available at ${API_URL}. Make sure it is running and try again.`
-  }
-  return `Could not load the meetings (HTTP ${error.response.status}).`
-}
+import { getErrorMessage, getMeetings } from '../api'
+import { isInProgress, REFRESH_INTERVAL_MS } from '../meetingStatus'
+import ErrorAlert from './ErrorAlert'
+import Loading from './Loading'
+import StatusBadge from './StatusBadge'
 
 // reloadKey: the list is loaded again every time this number changes.
-// onView: called with the meeting whose View button was clicked.
+// onView: called with the id of the meeting whose View button was clicked.
 function MeetingList({ reloadKey, onView }) {
   // null until the first answer arrives
   const [meetings, setMeetings] = useState(null)
@@ -53,7 +28,7 @@ function MeetingList({ reloadKey, onView }) {
       })
       .catch((error) => {
         if (!ignore) {
-          setError(listErrorMessage(error))
+          setError(getErrorMessage(error, 'Could not load the meetings'))
         }
       })
 
@@ -61,6 +36,38 @@ function MeetingList({ reloadKey, onView }) {
       ignore = true
     }
   }, [reloadKey, attempt])
+
+  // true when at least one meeting on the list is still being processed
+  const hasInProgress =
+    meetings !== null &&
+    meetings.some((meeting) => isInProgress(meeting.status))
+
+  // Loads the list again every few seconds while a meeting is being
+  // processed, so its status and its number of action items stay up to date.
+  // The cleanup stops the timer when no meeting is in progress any more
+  // (hasInProgress changes) and when the user leaves the list.
+  useEffect(() => {
+    if (!hasInProgress) {
+      return
+    }
+
+    let ignore = false
+    const timer = setInterval(() => {
+      getMeetings()
+        .then((data) => {
+          if (!ignore) {
+            setMeetings(data)
+          }
+        })
+        // What is on the screen stays, and the next tick tries again
+        .catch(() => {})
+    }, REFRESH_INTERVAL_MS)
+
+    return () => {
+      ignore = true
+      clearInterval(timer)
+    }
+  }, [hasInProgress])
 
   function handleRetry() {
     // Back to the loading state, then the effect runs again
@@ -70,27 +77,11 @@ function MeetingList({ reloadKey, onView }) {
   }
 
   if (error) {
-    return (
-      <div className="alert alert-danger mb-0" role="alert">
-        <p>{error}</p>
-        <button
-          type="button"
-          className="btn btn-outline-danger btn-sm"
-          onClick={handleRetry}
-        >
-          Try again
-        </button>
-      </div>
-    )
+    return <ErrorAlert message={error} onRetry={handleRetry} />
   }
 
   if (meetings === null) {
-    return (
-      <div className="d-flex align-items-center gap-2 text-secondary">
-        <div className="spinner-border spinner-border-sm" aria-hidden="true" />
-        <span role="status">Loading meetings...</span>
-      </div>
-    )
+    return <Loading text="Loading meetings..." />
   }
 
   if (meetings.length === 0) {
@@ -133,7 +124,7 @@ function MeetingList({ reloadKey, onView }) {
                 <button
                   type="button"
                   className="btn btn-outline-primary btn-sm"
-                  onClick={() => onView(meeting)}
+                  onClick={() => onView(meeting.id)}
                 >
                   View
                 </button>

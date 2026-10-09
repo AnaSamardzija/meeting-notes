@@ -1,9 +1,9 @@
 # Meeting Notes AI
 
-A small web app that takes a recorded meeting, transcribes it with an AI API and
-generates a summary and a list of action items.
-
-This README covers the basic local setup and will be extended as the project grows.
+A small single-user web app for meeting recordings. You upload a video, the
+backend extracts the audio with ffmpeg, Google Gemini transcribes it and writes
+a summary, the key topics and the action items, and everything is stored in a
+MySQL database so the processed meetings can be opened again later.
 
 ## Project structure
 
@@ -12,12 +12,16 @@ backend/    FastAPI application (Python)
 frontend/   React + Vite application (JavaScript)
 ```
 
+The database runs in Docker; the backend and the frontend run locally, each in
+its own terminal.
+
 ## Prerequisites
 
 - Python 3.14
 - Node.js 24 (with npm)
 - Docker Desktop (for the database)
 - ffmpeg (the backend uses it to extract the audio from the uploaded video)
+- A Google Gemini API key
 
 Install ffmpeg and make sure it is on the `PATH`:
 
@@ -38,23 +42,59 @@ Open a new terminal and check the installation:
 ffmpeg -version
 ```
 
-## Database
+## 1. Environment variables
 
-MySQL runs in a Docker container. Only the database is dockerized for now; the
-backend and the frontend run locally. All commands are run from the project root,
-with Docker Desktop running.
-
-Create your `.env` file from the example and set your own passwords in it:
+The project uses two `.env` files, each created from its `.env.example`. Run
+these from the project root:
 
 ```bash
 # Windows (PowerShell)
 Copy-Item .env.example .env
+Copy-Item frontend/.env.example frontend/.env
 
 # macOS / Linux
 cp .env.example .env
+cp frontend/.env.example frontend/.env
 ```
 
-Start the database and check that it is ready:
+### Root `.env` (database and backend)
+
+Set your own passwords and your Gemini API key; the other values can stay as
+they are.
+
+| Variable                 | Default                 | Description                                               |
+|--------------------------|-------------------------|-----------------------------------------------------------|
+| `MYSQL_DATABASE`         | required                | Database name                                             |
+| `MYSQL_USER`             | required                | Database user                                             |
+| `MYSQL_PASSWORD`         | required                | Password of the database user                             |
+| `MYSQL_ROOT_PASSWORD`    | required                | Password of the MySQL root user (used by Docker only)     |
+| `DB_HOST`                | `localhost`             | Host of the database                                      |
+| `DB_PORT`                | `3306`                  | Port of the database on your machine                      |
+| `CORS_ORIGINS`           | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
+| `LOG_LEVEL`              | `INFO`                  | Lowest level of the log messages the backend prints       |
+| `UPLOAD_DIR`             | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
+| `MAX_UPLOAD_MB`          | `500`                   | Largest video that can be uploaded, in megabytes          |
+| `FFMPEG_TIMEOUT_SECONDS` | `600`                   | Longest time ffmpeg may take on one video, in seconds     |
+| `GEMINI_API_KEY`         | required                | Google Gemini API key                                     |
+| `GEMINI_MODEL`           | `gemini-3.8-flash`      | Gemini model for the transcription and the summary        |
+| `GEMINI_TIMEOUT_SECONDS` | `600`                   | Longest time one request to Gemini may take, in seconds   |
+
+The backend does not start if a required variable is missing.
+
+### `frontend/.env`
+
+| Variable             | Example                 | Description                                                            |
+|----------------------|-------------------------|------------------------------------------------------------------------|
+| `VITE_API_URL`       | `http://localhost:8000` | Base URL of the backend API                                            |
+| `VITE_MAX_UPLOAD_MB` | `500`                   | Largest video the form accepts, in megabytes; same as `MAX_UPLOAD_MB` |
+
+Variables with the `VITE_` prefix are embedded in the JavaScript that is sent to
+the browser, so they are public: never put secrets in `frontend/.env`. Restart
+`npm run dev` after changing this file.
+
+## 2. Database
+
+Run these from the project root, with Docker Desktop running:
 
 ```bash
 docker compose up -d
@@ -63,16 +103,6 @@ docker compose ps
 
 The database is ready when the status shows `healthy`. If it does not get there,
 check the logs with `docker compose logs db`.
-
-Connection details:
-
-| Setting  | Value                                      |
-|----------|--------------------------------------------|
-| Host     | `localhost`                                |
-| Port     | `DB_PORT` from `.env` (3306 by default)    |
-| Database | `MYSQL_DATABASE` from `.env`               |
-| User     | `MYSQL_USER` from `.env`                   |
-| Password | `MYSQL_PASSWORD` from `.env`               |
 
 Stop the database:
 
@@ -83,15 +113,14 @@ docker compose down -v   # removes the container and deletes all data
 
 Notes:
 
-- The data is stored in a Docker volume, so it survives `docker compose down`.
 - The `MYSQL_*` values are applied only on the first start, when the volume is
   empty. If you change them in `.env` later, run `docker compose down -v` and
   start the database again (this deletes the data).
 - If port 3306 is already in use on your machine, change `DB_PORT` in `.env`.
 
-## Backend
+## 3. Backend
 
-All commands are run from the `backend/` folder.
+Run these from the `backend/` folder, with the database running.
 
 Create and activate a virtual environment:
 
@@ -105,33 +134,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-The backend reads its configuration from the same `.env` file in the project
-root that is used for the database (see above):
-
-| Variable                 | Default                 | Description                                               |
-|--------------------------|-------------------------|-----------------------------------------------------------|
-| `MYSQL_DATABASE`         | required                | Database name                                             |
-| `MYSQL_USER`             | required                | Database user                                             |
-| `MYSQL_PASSWORD`         | required                | Password of the database user                             |
-| `DB_HOST`                | `localhost`             | Host of the database                                      |
-| `DB_PORT`                | `3306`                  | Port of the database                                      |
-| `CORS_ORIGINS`           | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
-| `LOG_LEVEL`              | `INFO`                  | Lowest level of the log messages the backend prints       |
-| `UPLOAD_DIR`             | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
-| `MAX_UPLOAD_MB`          | `500`                   | Largest video that can be uploaded, in megabytes          |
-| `FFMPEG_TIMEOUT_SECONDS` | `600`                   | Longest time ffmpeg may take on one video, in seconds     |
-| `GEMINI_API_KEY`         | required                | Google Gemini API key                                     |
-| `GEMINI_MODEL`           | `gemini-3.8-flash`      | Gemini model for the transcription and the summary        |
-| `GEMINI_TIMEOUT_SECONDS` | `600`                   | Longest time one request to Gemini may take, in seconds   |
-
-The backend builds the database URL from these values, so the password is
-written in one place only.
-
-Create a Gemini API key in [Google AI Studio](https://aistudio.google.com/apikey)
-and set it as `GEMINI_API_KEY` in `.env`. The backend does not start without it.
-
 Install the dependencies, create the database tables and start the development
-server (the database must be running):
+server:
 
 ```bash
 pip install -r requirements.txt
@@ -139,20 +143,15 @@ alembic upgrade head
 fastapi dev app/main.py
 ```
 
-- Health check: http://localhost:8000/api/health
 - Swagger documentation: http://localhost:8000/docs
-
-The health check also tests the database connection. It returns `200` with
-`{"status": "ok", "database": "ok"}`, or `503` if the database is not available.
+- Health check: http://localhost:8000/api/health (returns `503` if the database
+  is not available)
 
 ### Database migrations
 
-The tables are created and changed with [Alembic](https://alembic.sqlalchemy.org/)
-migrations, stored in `backend/alembic/versions/`. Alembic takes the database
-connection from the same `.env` file as the backend, not from `alembic.ini`.
-
-Run these from the `backend/` folder, with the virtual environment activated and
-the database running:
+The tables are created with [Alembic](https://alembic.sqlalchemy.org/)
+migrations, stored in `backend/alembic/versions/`. Run these from the `backend/`
+folder, with the virtual environment activated:
 
 ```bash
 alembic upgrade head     # apply all migrations that are not applied yet
@@ -161,48 +160,22 @@ alembic downgrade -1     # undo the last migration
 alembic downgrade base   # undo all migrations (drops the tables and their data)
 ```
 
-After changing a model in `app/models.py`, generate a new migration, review the
-generated file and apply it:
+## 4. Frontend
 
-```bash
-alembic revision --autogenerate -m "describe the change"
-alembic upgrade head
-```
-
-## Frontend
-
-All commands are run from the `frontend/` folder.
-
-Create the frontend `.env` file from the example:
-
-```bash
-# Windows (PowerShell)
-Copy-Item .env.example .env
-
-# macOS / Linux
-cp .env.example .env
-```
-
-| Variable       | Example                 | Description                 |
-|----------------|-------------------------|-----------------------------|
-| `VITE_API_URL` | `http://localhost:8000` | Base URL of the backend API |
-
-Variables with the `VITE_` prefix are embedded in the JavaScript that is sent to
-the browser, so they are public: never put secrets in `frontend/.env`. Restart
-`npm run dev` after changing this file.
-
-Install the dependencies and start the development server:
+Run these from the `frontend/` folder:
 
 ```bash
 npm install
 npm run dev
 ```
 
-- App: http://localhost:5173/
+Open http://localhost:5173.
 
-The home page shows whether the backend is reachable and whether the backend can
-reach the database. Open the app at
-`http://localhost:5173` (not `http://127.0.0.1:5173`), because that is the origin
-allowed by `CORS_ORIGINS`.
+## Using the app
 
-The backend and the frontend run independently, each in its own terminal.
+1. Click **Upload meeting**, choose a video (`.mp4`, `.mov`, `.webm` or `.mkv`)
+   and click **Upload**.
+2. The meeting appears on the list. Its status changes by itself while it is
+   processed: Uploaded, Transcribing, Summarizing, Done (or Failed).
+3. Click **View** to see the transcript, the summary, the key topics and the
+   action items. A failed meeting shows the reason and a **Try again** button.

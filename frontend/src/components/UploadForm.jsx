@@ -1,39 +1,21 @@
 import { useState } from 'react'
-import { uploadMeeting } from './api'
-
-const API_URL = import.meta.env.VITE_API_URL
+import { getErrorMessage, uploadMeeting } from '../api'
 
 // Only a filter for the file dialog: the user can still pick any file, and
 // the backend is the one that decides what is accepted.
 const ACCEPTED_FILES =
   'video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.webm,.mkv'
 
+// The same limit as MAX_UPLOAD_MB of the backend. It only saves the user from
+// sending a file the backend would refuse anyway; the backend still checks.
+// NaN when VITE_MAX_UPLOAD_MB is not set, and then nothing is checked here.
+const MAX_UPLOAD_MB = Number(import.meta.env.VITE_MAX_UPLOAD_MB)
+
 function formatSize(bytes) {
   if (bytes < 1024 * 1024) {
     return `${(bytes / 1024).toFixed(1)} KB`
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-// Turns an error of the upload request into a message for the user.
-function uploadErrorMessage(error) {
-  // error.response exists only when the backend answered
-  if (!error.response) {
-    return `Backend is not available at ${API_URL}. Make sure it is running and try again.`
-  }
-
-  const { status, data } = error.response
-  // The backend sends {"detail": "..."}; for validation errors (422) detail
-  // is a list, which is not shown to the user
-  const detail = typeof data?.detail === 'string' ? data.detail : null
-
-  if (status === 415) {
-    return 'This file type is not supported. Choose a video file: .mp4, .mov, .webm or .mkv.'
-  }
-  if (status === 413) {
-    return detail ? `The file is too large. ${detail}.` : 'The file is too large.'
-  }
-  return detail ?? `Upload failed (HTTP ${status}).`
 }
 
 // onUploaded: called with the created meeting after a successful upload.
@@ -44,6 +26,12 @@ function UploadForm({ onUploaded, onCancel }) {
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState(null)
 
+  // Known as soon as a file is chosen, before anything is sent
+  const tooLarge =
+    file !== null &&
+    MAX_UPLOAD_MB > 0 &&
+    file.size > MAX_UPLOAD_MB * 1024 * 1024
+
   function handleFileChange(event) {
     // files is empty when the user closes the dialog without choosing
     setFile(event.target.files[0] ?? null)
@@ -53,7 +41,7 @@ function UploadForm({ onUploaded, onCancel }) {
   async function handleSubmit(event) {
     // Without this the browser would send the form itself and reload the page
     event.preventDefault()
-    if (!file) {
+    if (!file || tooLarge) {
       return
     }
 
@@ -64,7 +52,7 @@ function UploadForm({ onUploaded, onCancel }) {
       const meeting = await uploadMeeting(file, setProgress)
       onUploaded(meeting)
     } catch (error) {
-      setError(uploadErrorMessage(error))
+      setError(getErrorMessage(error, 'Upload failed'))
     } finally {
       setUploading(false)
     }
@@ -121,6 +109,12 @@ function UploadForm({ onUploaded, onCancel }) {
         </div>
       )}
 
+      {tooLarge && (
+        <div className="alert alert-danger" role="alert">
+          The file is larger than {MAX_UPLOAD_MB} MB. Choose a smaller file.
+        </div>
+      )}
+
       {error && (
         <div className="alert alert-danger" role="alert">
           {error}
@@ -131,7 +125,7 @@ function UploadForm({ onUploaded, onCancel }) {
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={!file || uploading}
+          disabled={!file || tooLarge || uploading}
         >
           {uploading ? 'Uploading...' : 'Upload'}
         </button>
