@@ -1,0 +1,9 @@
+# Everything the application needs, plus the tools used during development.
+# Install with: pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Test framework
+pytest==9.2.0
+
+# Linter: checks the Python code for errors and style problems
+ruff==0.17.4

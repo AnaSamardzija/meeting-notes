@@ -67,7 +67,7 @@ they are.
 | `MYSQL_DATABASE`         | required                | Database name                                             |
 | `MYSQL_USER`             | required                | Database user                                             |
 | `MYSQL_PASSWORD`         | required                | Password of the database user                             |
-| `MYSQL_ROOT_PASSWORD`    | required                | Password of the MySQL root user (used by Docker only)     |
+| `MYSQL_ROOT_PASSWORD`    | required                | Password of the MySQL root user (Docker and the tests)    |
 | `DB_HOST`                | `localhost`             | Host of the database                                      |
 | `DB_PORT`                | `3306`                  | Port of the database on your machine                      |
 | `CORS_ORIGINS`           | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
@@ -159,6 +159,28 @@ alembic current          # show which migration the database is on
 alembic downgrade -1     # undo the last migration
 alembic downgrade base   # undo all migrations (drops the tables and their data)
 ```
+
+### Running the tests
+
+The backend tests use [pytest](https://docs.pytest.org/). Run these from the
+`backend/` folder, with the virtual environment activated and the database
+running:
+
+```bash
+pip install -r requirements-dev.txt   # the app's dependencies plus pytest and ruff
+pytest                                # run all tests
+pytest -v                             # the same, with the name of every test
+ruff check .                          # check the Python code for errors
+```
+
+- The tests use a separate database, `<MYSQL_DATABASE>_test` (for example
+  `meeting_notes_test`), on the same MySQL server. It is created automatically
+  with the `MYSQL_ROOT_PASSWORD` from `.env`, and its tables are rebuilt with the
+  migrations at the start of every test run. Your own meetings are never touched.
+- Every test runs in a transaction that is rolled back at the end, so the tests
+  do not leave data behind.
+- Gemini and ffmpeg are never called: the tests replace them with mocks, so no
+  API key or ffmpeg installation is needed and nothing is sent to Google.
 
 ## 4. Frontend
 
