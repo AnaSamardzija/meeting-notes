@@ -58,9 +58,9 @@ from fastapi.testclient import TestClient
 from app.config import settings
 from app.database import engine, get_db
 from app.main import app
-from app.models import ActionItem, Meeting, MeetingStatus
+from app.models import Meeting, MeetingStatus
 from app.routers import meetings as meetings_router
-from app.services import processing
+from app.services import ai, processing
 
 
 def _create_test_database() -> None:
@@ -177,6 +177,19 @@ def ai_mocks(monkeypatch):
 
 
 @pytest.fixture
+def fake_gemini(monkeypatch):
+    """Replace the Gemini client of app.services.ai, for the tests of the AI
+    functions themselves (ai_mocks only replaces them in processing).
+
+    A Mock creates every attribute it is asked for, so a test sets what the
+    call returns with fake_gemini.interactions.create.return_value.
+    """
+    client = Mock()
+    monkeypatch.setattr(ai, "_client", lambda: client)
+    return client
+
+
+@pytest.fixture
 def process_meeting_mock(monkeypatch):
     """Replace the background processing that the upload and process
     endpoints start, so an API test only checks the endpoint itself."""
@@ -199,17 +212,11 @@ def make_meeting(db):
     """Return a function that stores a meeting with made-up data."""
 
     def _make_meeting(
-        status: MeetingStatus = MeetingStatus.DONE,
-        action_items: list[tuple[str | None, str]] = (),
-        **fields,
+        status: MeetingStatus = MeetingStatus.DONE, **fields
     ) -> Meeting:
         fields.setdefault("original_filename", "weekly-sync.mp4")
         fields.setdefault("file_path", "1/original.mp4")
         meeting = Meeting(status=status, **fields)
-        meeting.action_items = [
-            ActionItem(assignee=assignee, description=description)
-            for assignee, description in action_items
-        ]
         db.add(meeting)
         db.commit()
         return meeting

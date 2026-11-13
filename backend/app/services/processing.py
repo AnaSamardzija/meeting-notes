@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import ActionItem, Meeting, MeetingStatus, utc_now
+from app.models import Meeting, MeetingStatus, utc_now
 from app.services.ai import AIServiceError, analyze_transcript, transcribe_audio
 from app.services.audio import AudioExtractionError, extract_audio
 
@@ -35,13 +35,10 @@ def reset_results(meeting: Meeting) -> None:
     """
     meeting.title = None
     meeting.transcript = None
-    meeting.summary = None
-    meeting.key_topics = None
+    meeting.interviewee = None
+    meeting.insights = None
     meeting.error_message = None
     meeting.processed_at = None
-    # delete-orphan on the relationship: an item removed from the list is
-    # deleted from the database at the next commit
-    meeting.action_items.clear()
 
 
 def _mark_failed(db: Session, meeting: Meeting, meeting_id: int, message: str) -> None:
@@ -97,12 +94,10 @@ def process_meeting(meeting_id: int) -> None:
             analysis = analyze_transcript(transcript)
 
             meeting.title = analysis.title
-            meeting.summary = analysis.summary
-            meeting.key_topics = analysis.key_topics
-            meeting.action_items = [
-                ActionItem(assignee=item.assignee, description=item.description)
-                for item in analysis.action_items
-            ]
+            # model_dump turns the Pydantic objects into plain dicts, which
+            # the JSON columns can store
+            meeting.interviewee = analysis.interviewee.model_dump()
+            meeting.insights = analysis.insights.model_dump()
             meeting.status = MeetingStatus.DONE
             meeting.processed_at = utc_now()
             db.commit()

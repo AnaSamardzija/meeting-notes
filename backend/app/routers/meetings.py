@@ -18,7 +18,6 @@ def list_meetings(db: Session = Depends(get_db)):
 
 @router.get("/{meeting_id}", response_model=MeetingDetail)
 def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
-    # action_items are loaded by a second query when the response is built
     return meetings_service.get_meeting(db, meeting_id)
 
 

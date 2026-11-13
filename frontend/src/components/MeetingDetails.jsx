@@ -46,7 +46,7 @@ function MeetingDetails({ meetingId, onBack }) {
       })
       .catch((error) => {
         if (!ignore) {
-          setError(getErrorMessage(error, 'Could not load the meeting'))
+          setError(getErrorMessage(error, 'Could not load the interview'))
         }
       })
 
@@ -126,7 +126,7 @@ function MeetingDetails({ meetingId, onBack }) {
           <h2 className="h5 mb-0">
             {meeting
               ? (meeting.title ?? meeting.original_filename)
-              : 'Meeting details'}
+              : 'Interview details'}
           </h2>
           {meeting && <StatusBadge status={meeting.status} />}
         </div>
@@ -143,7 +143,7 @@ function MeetingDetails({ meetingId, onBack }) {
         {error ? (
           <ErrorAlert message={error} onRetry={handleRetry} />
         ) : meeting === null ? (
-          <Loading text="Loading meeting..." />
+          <Loading text="Loading interview..." />
         ) : (
           <>
             {inProgress && (

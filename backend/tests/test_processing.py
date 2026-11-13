@@ -6,22 +6,36 @@ ai_mocks in conftest.py), so ffmpeg and Gemini are never called.
 """
 
 from app.models import MeetingStatus
-from app.services.ai import ActionItemResult, AIServiceError, MeetingAnalysis
+from app.schemas import InsightItem, Insights, Interviewee
+from app.services.ai import AIServiceError, MeetingAnalysis
 from app.services.processing import UNEXPECTED_ERROR_MESSAGE, process_meeting
 
+# A made-up interview with a made-up coach
 TRANSCRIPT = (
-    "Speaker 1: Let's plan the spring camp.\n"
-    "Alex: I will book the training pitch."
+    "Speaker 1: How do you plan your training sessions now?\n"
+    "Alex: I write them in a notebook, and I would like to share them with the team."
 )
 
 ANALYSIS = MeetingAnalysis(
-    title="Planning the spring camp",
-    summary="The team planned the spring camp and who books the pitch.",
-    key_topics=["Spring camp", "Training pitch"],
-    action_items=[
-        ActionItemResult(assignee="Alex", description="Book the training pitch"),
-        ActionItemResult(assignee=None, description="Send the schedule to the players"),
-    ],
+    title="Youth coach on planning training sessions",
+    interviewee=Interviewee(name="Alex", role="U15 coach", location=None),
+    insights=Insights(
+        takeaway="The app fits Alex well if sessions can be shared with the team.",
+        context="Alex coaches a U15 team and plans the sessions in a notebook.",
+        likes=[],
+        dislikes=[
+            InsightItem(
+                title="Paper notes",
+                explanation="Notes in a notebook are easy to lose.",
+            )
+        ],
+        wants=[
+            InsightItem(
+                title="Shared session plans",
+                explanation="The players should see the plan before training.",
+            )
+        ],
+    ),
 )
 
 
@@ -47,14 +61,31 @@ def test_process_meeting_stores_the_transcript_and_the_analysis(
     assert meeting.status == MeetingStatus.DONE
     assert meeting.error_message is None
     assert meeting.transcript == TRANSCRIPT
-    assert meeting.title == "Planning the spring camp"
-    assert meeting.summary == ANALYSIS.summary
-    assert meeting.key_topics == ["Spring camp", "Training pitch"]
+    assert meeting.title == "Youth coach on planning training sessions"
     assert meeting.processed_at is not None
-    assert [(item.assignee, item.description) for item in meeting.action_items] == [
-        ("Alex", "Book the training pitch"),
-        (None, "Send the schedule to the players"),
-    ]
+    # The JSON columns hold plain dicts and lists, read back from the database
+    assert meeting.interviewee == {
+        "name": "Alex",
+        "role": "U15 coach",
+        "location": None,
+    }
+    assert meeting.insights == {
+        "takeaway": "The app fits Alex well if sessions can be shared with the team.",
+        "context": "Alex coaches a U15 team and plans the sessions in a notebook.",
+        "likes": [],
+        "dislikes": [
+            {
+                "title": "Paper notes",
+                "explanation": "Notes in a notebook are easy to lose.",
+            }
+        ],
+        "wants": [
+            {
+                "title": "Shared session plans",
+                "explanation": "The players should see the plan before training.",
+            }
+        ],
+    }
 
 
 def test_process_meeting_stores_the_message_of_an_ai_error(
@@ -94,4 +125,5 @@ def test_process_meeting_hides_the_details_of_an_unexpected_error(
     # The transcript was saved before the analysis, so it is kept
     assert meeting.transcript == TRANSCRIPT
     assert meeting.title is None
-    assert meeting.action_items == []
+    assert meeting.interviewee is None
+    assert meeting.insights is None

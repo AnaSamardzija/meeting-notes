@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict
@@ -9,12 +9,44 @@ from app.models import MeetingStatus
 def _as_utc(value: datetime) -> datetime:
     # The database returns times without a time zone, and all of them are UTC
     # (see app/models.py)
-    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
 
 # Sent as "2026-10-09T10:00:00Z". Without the "Z" the browser would read the
 # time as local time and show it shifted.
 UtcDateTime = Annotated[datetime, AfterValidator(_as_utc)]
+
+
+# The summary of an interview. The same classes describe three things: the
+# JSON that Gemini must return (see app/services/ai.py), what is stored in the
+# JSON columns of app/models.py, and what the API returns. What each field
+# should hold is written only in ANALYZE_INSTRUCTIONS in app/services/ai.py,
+# so the rules are in one place. The order of the fields is the order in which
+# Gemini writes them, so it matters (see the same file).
+class Interviewee(BaseModel):
+    """The person who was interviewed. Each field is None when the interview
+    does not say it."""
+
+    name: str | None
+    role: str | None
+    location: str | None
+
+
+class InsightItem(BaseModel):
+    """One point of feedback."""
+
+    title: str
+    explanation: str
+
+
+class Insights(BaseModel):
+    """Everything in the summary except the title and the interviewee."""
+
+    context: str
+    likes: list[InsightItem]
+    dislikes: list[InsightItem]
+    wants: list[InsightItem]
+    takeaway: str
 
 
 class MeetingRead(BaseModel):
@@ -33,19 +65,10 @@ class MeetingRead(BaseModel):
 
 
 class MeetingListItem(MeetingRead):
-    """One row of the meetings list: no transcript or summary, only the number
-    of action items."""
+    """One row of the meetings list: no transcript or summary, only who was
+    interviewed (None until processing is done)."""
 
-    action_item_count: int
-
-
-class ActionItemRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    # None when the meeting does not say who is responsible
-    assignee: str | None
-    description: str
+    interviewee: Interviewee | None
 
 
 class MeetingDetail(MeetingRead):
@@ -54,7 +77,6 @@ class MeetingDetail(MeetingRead):
 
     error_message: str | None
     transcript: str | None
-    summary: str | None
-    key_topics: list[str] | None
+    interviewee: Interviewee | None
+    insights: Insights | None
     processed_at: UtcDateTime | None
-    action_items: list[ActionItemRead]
