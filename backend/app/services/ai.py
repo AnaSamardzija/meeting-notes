@@ -17,16 +17,13 @@ from google.genai._gaos.lib.compat_errors import (
 from pydantic import BaseModel, ValidationError
 
 from app.config import settings
-from app.schemas import InsightItem, Insights, Interviewee
+from app.schemas import TITLE_MAX_LENGTH, InsightItem, Insights, Interviewee
 
 logger = logging.getLogger(__name__)
 
 # The uploaded file is usually ready at once; wait a little if it is not
 FILE_READY_TIMEOUT_SECONDS = 60
 FILE_POLL_SECONDS = 2
-
-# The title column in app/models.py is String(255)
-TITLE_MAX_LENGTH = 255
 
 # Everything the SDK raises when a call fails. The two parts of the SDK use
 # different classes:

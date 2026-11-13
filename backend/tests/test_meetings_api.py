@@ -1,6 +1,9 @@
-"""Tests of the meetings list, the meeting details and processing again."""
+"""Tests of the meetings list, the meeting details, changing the title and
+processing again."""
 
 from datetime import datetime
+
+import pytest
 
 from app.models import MeetingStatus
 
@@ -102,6 +105,38 @@ def test_details_of_a_meeting_that_does_not_exist_return_404(client):
     assert response.json() == {"detail": "Meeting not found"}
 
 
+def test_changing_the_title_stores_it_and_returns_the_meeting(
+    client, db, make_meeting
+):
+    meeting = make_meeting(title="Youth coach on planning training sessions")
+
+    response = client.patch(
+        f"/api/meetings/{meeting.id}", json={"title": "  Interview with Alex  "}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    # The spaces around the title are removed
+    assert body["title"] == "Interview with Alex"
+    # The whole meeting comes back, so the details can show it at once
+    assert body["id"] == meeting.id
+    assert "transcript" in body
+    db.refresh(meeting)
+    assert meeting.title == "Interview with Alex"
+
+
+# parametrize: the same test runs once for each value in the list
+@pytest.mark.parametrize("title", ["", "   ", "x" * 256])
+def test_an_empty_or_too_long_title_is_refused(client, db, make_meeting, title):
+    meeting = make_meeting(title="Youth coach on planning training sessions")
+
+    response = client.patch(f"/api/meetings/{meeting.id}", json={"title": title})
+
+    assert response.status_code == 422
+    db.refresh(meeting)
+    assert meeting.title == "Youth coach on planning training sessions"
+
+
 def test_processing_again_is_refused_while_the_meeting_is_being_processed(
     client, db, make_meeting, process_meeting_mock
 ):
@@ -117,7 +152,7 @@ def test_processing_again_is_refused_while_the_meeting_is_being_processed(
     process_meeting_mock.assert_not_called()
 
 
-def test_processing_again_clears_the_old_results(
+def test_processing_again_clears_the_old_results_but_keeps_the_title(
     client, db, make_meeting, process_meeting_mock
 ):
     meeting = make_meeting(
@@ -134,7 +169,8 @@ def test_processing_again_clears_the_old_results(
     assert response.json()["status"] == "transcribing"
     db.refresh(meeting)
     assert meeting.status == MeetingStatus.TRANSCRIBING
-    assert meeting.title is None
+    # The title may have been set by the user, so it is never cleared
+    assert meeting.title == "Youth coach on planning training sessions"
     assert meeting.transcript is None
     assert meeting.interviewee is None
     assert meeting.insights is None

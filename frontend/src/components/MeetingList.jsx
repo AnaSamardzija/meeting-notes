@@ -127,8 +127,8 @@ function MeetingList({ reloadKey, onView }) {
           {meetings.map((meeting) => (
             // key tells React which row is which when the list changes
             <tr key={meeting.id}>
-              {/* The title is written by the AI, so it is missing until the
-                  meeting is processed */}
+              {/* When the user did not give a title, the AI writes it, so it
+                  is missing until the meeting is processed */}
               <td>{meeting.title ?? meeting.original_filename}</td>
               <td>
                 <IntervieweeCell interviewee={meeting.interviewee} />

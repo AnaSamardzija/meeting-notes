@@ -1,5 +1,6 @@
 """Tests of POST /api/meetings (uploading a video)."""
 
+import pytest
 from sqlalchemy import func, select
 
 from app.config import settings
@@ -76,3 +77,25 @@ def test_upload_saves_the_video_and_starts_the_processing(
     # tmp_path is the upload folder of this test (see isolated_app in conftest.py)
     assert (tmp_path / str(meeting_id) / "original.mp4").read_bytes() == FAKE_VIDEO
     process_meeting_mock.assert_called_once_with(meeting_id)
+
+
+@pytest.mark.parametrize(
+    ("title", "stored_title"),
+    [
+        ("  Interview with Alex  ", "Interview with Alex"),
+        # Only spaces count as no title, so the AI writes one
+        ("   ", None),
+    ],
+)
+def test_upload_stores_the_title_the_user_gave(client, db, title, stored_title):
+    # data=: the other fields of the same multipart form
+    response = client.post(
+        "/api/meetings",
+        files={"file": ("weekly-sync.mp4", FAKE_VIDEO, "video/mp4")},
+        data={"title": title},
+    )
+
+    assert response.status_code == 202
+    assert response.json()["title"] == stored_title
+    meeting = db.get(Meeting, response.json()["id"])
+    assert meeting.title == stored_title

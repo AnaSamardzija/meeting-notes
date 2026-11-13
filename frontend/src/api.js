@@ -4,6 +4,10 @@ import axios from 'axios'
 // that reads its address.
 export const API_URL = import.meta.env.VITE_API_URL
 
+// The longest title the backend accepts (TITLE_MAX_LENGTH in
+// backend/app/schemas.py)
+export const TITLE_MAX_LENGTH = 255
+
 const api = axios.create({
   baseURL: API_URL,
 })
@@ -51,14 +55,23 @@ export async function reprocessMeeting(id) {
   return response.data
 }
 
-// Sends the video as multipart/form-data and returns the created meeting.
-// onProgress is called with the percentage (0-100) sent so far.
-export async function uploadMeeting(file, onProgress) {
-  // The field name must match the parameter of the upload endpoint ("file").
-  // The Content-Type header is not set here: the browser adds it together
-  // with the boundary that separates the parts of the body.
+// Changes the given fields of the meeting (for now only { title }) and
+// returns the whole updated meeting.
+export async function updateMeeting(id, data) {
+  const response = await api.patch(`/api/meetings/${id}`, data)
+  return response.data
+}
+
+// Sends the video and the title as multipart/form-data and returns the
+// created meeting. An empty title lets the AI write one. onProgress is called
+// with the percentage (0-100) sent so far.
+export async function uploadMeeting(file, title, onProgress) {
+  // The field names must match the parameters of the upload endpoint ("file"
+  // and "title"). The Content-Type header is not set here: the browser adds
+  // it together with the boundary that separates the parts of the body.
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('title', title)
 
   const response = await api.post('/api/meetings', formData, {
     onUploadProgress: (event) => {

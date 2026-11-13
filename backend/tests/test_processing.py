@@ -88,6 +88,32 @@ def test_process_meeting_stores_the_transcript_and_the_analysis(
     }
 
 
+def test_process_meeting_keeps_a_title_the_user_set_during_the_processing(
+    db, make_meeting, ai_mocks
+):
+    meeting = make_meeting(status=MeetingStatus.UPLOADED, title=None)
+    ai_mocks.transcribe_audio.return_value = TRANSCRIPT
+
+    def user_sets_the_title_while_the_summary_is_made(transcript):
+        # Stands for PATCH /api/meetings/{id} arriving while the AI writes the
+        # summary, after process_meeting has already read the meeting
+        meeting.title = "Interview with Alex"
+        db.commit()
+        return ANALYSIS
+
+    ai_mocks.analyze_transcript.side_effect = (
+        user_sets_the_title_while_the_summary_is_made
+    )
+
+    process_meeting(meeting.id)
+
+    db.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE
+    # The AI title is used only when there is no title
+    assert meeting.title == "Interview with Alex"
+    assert meeting.insights is not None
+
+
 def test_process_meeting_stores_the_message_of_an_ai_error(
     db, make_meeting, ai_mocks
 ):
