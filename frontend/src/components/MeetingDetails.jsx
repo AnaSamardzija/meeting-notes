@@ -34,6 +34,9 @@ function MeetingDetails({ meetingId, onBack }) {
   // false when the meeting is not loaded yet or is not being processed
   const inProgress = meeting !== null && isInProgress(meeting.status)
   const progressStep = inProgress ? PROGRESS_STEPS[meeting.status] : undefined
+  // For the text of the window that asks to confirm the processing
+  const isFailed = meeting?.status === 'failed'
+  const isEdited = Boolean(meeting?.edited_at)
 
   useEffect(() => {
     // Set by the cleanup below when a newer request has started (or the
@@ -97,14 +100,11 @@ function MeetingDetails({ meetingId, onBack }) {
   }
 
   // The "Try again" button of a failed meeting and the "Process again" button
-  // of a processed one. The processing writes a new summary over the old one,
-  // so when the user has edited the summary, they are asked first.
+  // of a processed one. Both only open the window that asks to confirm: every
+  // processing uses Gemini tokens, and it writes a new summary over the old
+  // one, even an edited one.
   function handleReprocessClick() {
-    if (meeting.edited_at) {
-      setConfirmingReprocess(true)
-    } else {
-      reprocess()
-    }
+    setConfirmingReprocess(true)
   }
 
   function handleReprocessConfirmed() {
@@ -224,19 +224,35 @@ function MeetingDetails({ meetingId, onBack }) {
         )}
       </div>
 
+      {/* The text depends on the meeting: a failed one is tried again, a
+          processed one loses its summary, and an edited one loses the
+          changes of the user too (then the button is red) */}
       <ConfirmDialog
         open={confirmingReprocess}
-        title="Process the interview again?"
-        confirmLabel="Process again"
-        danger
+        title={isFailed ? 'Try processing again?' : 'Process the interview again?'}
+        confirmLabel={isFailed ? 'Try again' : 'Process again'}
+        danger={isEdited}
         onConfirm={handleReprocessConfirmed}
         onCancel={() => setConfirmingReprocess(false)}
       >
-        <p className="mb-0">
-          The summary of this interview has been edited. Processing it again
-          writes a new AI summary over your changes, and they cannot be
-          restored.
-        </p>
+        <div className="vstack gap-2">
+          <p className="mb-0">
+            Gemini transcribes and summarizes the interview again. This uses
+            tokens again, which costs money.
+          </p>
+          {isEdited ? (
+            <p className="mb-0">
+              The summary has been edited. The new AI summary replaces your
+              changes, and they cannot be restored.
+            </p>
+          ) : (
+            !isFailed && (
+              <p className="mb-0">
+                The new summary replaces the current one.
+              </p>
+            )
+          )}
+        </div>
       </ConfirmDialog>
     </div>
   )

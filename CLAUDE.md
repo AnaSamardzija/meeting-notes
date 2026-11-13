@@ -49,9 +49,11 @@ A small single-user web app (no login, no user accounts):
   returns the form, `PUT` takes the whole edited summary, checks it with the
   same Pydantic classes as the AI summary, stores it in the same JSON columns
   and sets `edited_at`. Both answer 409 unless processing is done.
-- A processed interview has a "Process again" button. When the summary has
-  been edited, it and "Try again" first ask for confirmation, because the new
-  AI summary replaces the changes; processing again clears `edited_at`.
+- A processed interview has a "Process again" button. It and "Try again"
+  always ask for confirmation first (`ConfirmDialog`), because processing uses
+  Gemini tokens; when the summary has been edited, the window also warns that
+  the changes will be lost. Processing again clears `edited_at`, and the
+  details show "Edited" with its date while it is set.
 - The UI texts talk about interviews; the names in the code and the API stay
   "meeting" (`Meeting`, `/api/meetings`).
 - Errors are returned with proper HTTP status codes; API keys come only from
