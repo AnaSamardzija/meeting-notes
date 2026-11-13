@@ -6,3 +6,20 @@
 testpaths = ["tests"]
 # Added to sys.path, so the tests can import the app package ("from app ...")
 pythonpath = ["."]
+
+[tool.ruff]
+# A migration that has been applied must never be edited (see CLAUDE.md), so
+# the migrations are not checked: a new rule would otherwise ask for changes
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint.flake8-bugbear]
+# B008 warns about a function call as a default value, because Python runs it
+# only once. Depends(...) is how FastAPI declares a dependency, so it is fine
+extend-immutable-calls = ["fastapi.Depends"]
+
+[tool.ruff.lint.isort]
+# Several "x as y" names from one module stay in one import statement
+combine-as-imports = true
+# The alembic/ folder holds the migrations; "import alembic" is the installed
+# package, not code of this project
+known-third-party = ["alembic"]

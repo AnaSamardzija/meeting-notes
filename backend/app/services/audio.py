@@ -31,6 +31,9 @@ def _run(command: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
         # (e.g. a file name), and that must not crash the call
         return subprocess.run(
             command,
+            # check=False: a failed run does not raise; the callers read the
+            # exit code themselves and write their own message
+            check=False,
             capture_output=True,
             text=True,
             encoding="utf-8",

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
@@ -9,7 +9,7 @@ from app.models import MeetingStatus
 def _as_utc(value: datetime) -> datetime:
     # The database returns times without a time zone, and all of them are UTC
     # (see app/models.py)
-    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
 
 # Sent as "2026-10-09T10:00:00Z". Without the "Z" the browser would read the

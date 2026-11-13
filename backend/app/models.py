@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, DateTime, Enum, String, Text
 from sqlalchemy.dialects.mysql import LONGTEXT
@@ -9,7 +9,7 @@ from app.database import Base
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class MeetingStatus(str, enum.Enum):
