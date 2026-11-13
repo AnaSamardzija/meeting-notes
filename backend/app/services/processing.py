@@ -31,9 +31,9 @@ INTERRUPTED_MESSAGE = "Processing was interrupted because the server was restart
 def reset_results(meeting: Meeting) -> None:
     """Clear everything a previous run of the processing left on the meeting.
 
-    The caller commits.
+    The title is kept: it may have been set by the user, and the AI writes one
+    only when there is none. The caller commits.
     """
-    meeting.title = None
     meeting.transcript = None
     meeting.interviewee = None
     meeting.insights = None
@@ -93,7 +93,19 @@ def process_meeting(meeting_id: int) -> None:
 
             analysis = analyze_transcript(transcript)
 
-            meeting.title = analysis.title
+            # The AI title is used only when the meeting has no title. The
+            # check is done by the database (WHERE title IS NULL), not with
+            # meeting.title: that is the value read when the processing
+            # started, and the user may have set a title since then.
+            db.execute(
+                update(Meeting)
+                .where(Meeting.id == meeting_id, Meeting.title.is_(None))
+                .values(title=analysis.title)
+                # Leave the meeting object in the session as it is: it would
+                # be changed from the same old value, so it could show a title
+                # the database did not get. Nothing below reads it.
+                .execution_options(synchronize_session=False)
+            )
             # model_dump turns the Pydantic objects into plain dicts, which
             # the JSON columns can store
             meeting.interviewee = analysis.interviewee.model_dump()

@@ -3,8 +3,8 @@ import { getErrorMessage, getMeeting, reprocessMeeting } from '../api'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
 import MeetingContent from './MeetingContent'
+import MeetingTitle from './MeetingTitle'
 import { isInProgress, REFRESH_INTERVAL_MS } from '../meetingStatus'
-import StatusBadge from './StatusBadge'
 
 // The text shown for each status in which the backend is still working on
 // the meeting
@@ -120,15 +120,16 @@ function MeetingDetails({ meetingId, onBack }) {
   return (
     <div className="card shadow-sm">
       <div className="card-header bg-white d-flex justify-content-between align-items-center gap-3 py-3">
-        <div className="d-flex align-items-center flex-wrap gap-2">
-          {/* The title is written by the AI, so it is missing until the
-              meeting is processed */}
-          <h2 className="h5 mb-0">
-            {meeting
-              ? (meeting.title ?? meeting.original_filename)
-              : 'Interview details'}
-          </h2>
-          {meeting && <StatusBadge status={meeting.status} />}
+        {/* flex-grow-1: the form for the title gets all the room up to the
+            Back button */}
+        <div className="d-flex align-items-center flex-wrap gap-2 flex-grow-1">
+          {meeting ? (
+            // The status, the title and its pencil button. The PATCH returns
+            // the whole meeting, so it simply replaces the one on the screen
+            <MeetingTitle meeting={meeting} onSaved={setMeeting} />
+          ) : (
+            <h2 className="h5 mb-0">Interview details</h2>
+          )}
         </div>
         <button
           type="button"

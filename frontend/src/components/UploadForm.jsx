@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getErrorMessage, uploadMeeting } from '../api'
+import { getErrorMessage, TITLE_MAX_LENGTH, uploadMeeting } from '../api'
 
 // Only a filter for the file dialog: the user can still pick any file, and
 // the backend is the one that decides what is accepted.
@@ -22,6 +22,8 @@ function formatSize(bytes) {
 // onCancel: called when the user closes the form without uploading.
 function UploadForm({ onUploaded, onCancel }) {
   const [file, setFile] = useState(null)
+  // Optional: when it stays empty, the AI writes the title
+  const [title, setTitle] = useState('')
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState(null)
@@ -49,7 +51,7 @@ function UploadForm({ onUploaded, onCancel }) {
     setProgress(0)
     setError(null)
     try {
-      const meeting = await uploadMeeting(file, setProgress)
+      const meeting = await uploadMeeting(file, title.trim(), setProgress)
       onUploaded(meeting)
     } catch (error) {
       setError(getErrorMessage(error, 'Upload failed'))
@@ -84,6 +86,25 @@ function UploadForm({ onUploaded, onCancel }) {
             {file.name} ({formatSize(file.size)})
           </div>
         )}
+      </div>
+
+      <div className="mb-3">
+        <label htmlFor="meeting-title" className="form-label">
+          Title (optional)
+        </label>
+        {/* A controlled input: React keeps its value in the title state and
+            onChange updates the state on every key. maxLength stops the
+            typing at the limit of the backend. */}
+        <input
+          id="meeting-title"
+          type="text"
+          className="form-control"
+          value={title}
+          maxLength={TITLE_MAX_LENGTH}
+          onChange={(event) => setTitle(event.target.value)}
+          disabled={uploading}
+        />
+        <div className="form-text">Leave empty to let the AI write it.</div>
       </div>
 
       {uploading && (

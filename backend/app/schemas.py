@@ -1,9 +1,21 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
 
 from app.models import MeetingStatus
+
+# The title column in app/models.py is String(255)
+TITLE_MAX_LENGTH = 255
+
+# A title the user sets: the spaces around it are removed first, then it must
+# have between 1 and TITLE_MAX_LENGTH characters. Anything else is a 422.
+Title = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=TITLE_MAX_LENGTH
+    ),
+]
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -69,6 +81,12 @@ class MeetingListItem(MeetingRead):
     interviewed (None until processing is done)."""
 
     interviewee: Interviewee | None
+
+
+class MeetingUpdate(BaseModel):
+    """The body of PATCH /api/meetings/{id}: what the user can change."""
+
+    title: Title
 
 
 class MeetingDetail(MeetingRead):

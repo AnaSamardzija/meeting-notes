@@ -25,7 +25,8 @@ class Meeting(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     original_filename: Mapped[str] = mapped_column(String(255))
-    # Filled in by the AI after processing
+    # Set by the user, or written by the AI after processing when the user
+    # did not set one
     title: Mapped[str | None] = mapped_column(String(255))
     file_path: Mapped[str] = mapped_column(String(500))
     # MySQL DATETIME has no time zone, so all times are stored as UTC

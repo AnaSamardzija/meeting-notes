@@ -68,6 +68,18 @@ def get_meeting(db: Session, meeting_id: int) -> Meeting:
     return meeting
 
 
+def update_title(db: Session, meeting_id: int, title: str) -> Meeting:
+    """Set the title of the meeting and return the meeting.
+
+    The title has been checked by the schema already. Raises
+    MeetingNotFoundError.
+    """
+    meeting = get_meeting(db, meeting_id)
+    meeting.title = title
+    db.commit()
+    return meeting
+
+
 def _discard_upload(db: Session, meeting_dir: Path | None) -> None:
     """Leave nothing behind after a failed upload: neither the row nor a
     partial file."""
@@ -82,12 +94,13 @@ def create_meeting(
     filename: str | None,
     content_type: str | None,
     size: int | None,
+    title: str | None = None,
 ) -> Meeting:
     """Check the uploaded video, save it to disk and create its meeting.
 
     The arguments are plain values, not the UploadFile of FastAPI, so the
     service does not depend on the web framework. The caller starts the
-    processing.
+    processing. An empty title is stored as None, and the AI then writes one.
 
     Raises UnsupportedMediaError, EmptyFileError, FileTooLargeError or
     UploadSaveError.
@@ -119,7 +132,11 @@ def create_meeting(
         # file_path depends on the id, and the id exists only after the INSERT.
         # flush sends the INSERT inside the open transaction, so the row is not
         # permanent (or visible to anyone else) until commit.
-        meeting = Meeting(original_filename=original_filename, file_path="")
+        meeting = Meeting(
+            original_filename=original_filename,
+            file_path="",
+            title=(title or "").strip() or None,
+        )
         db.add(meeting)
         db.flush()
 
