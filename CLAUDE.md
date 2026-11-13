@@ -27,7 +27,8 @@ A small single-user web app (no login, no user accounts):
    feedback about other companies' tools goes to the context.
 4. All results are stored in the database (`interviewee` and `insights` are JSON
    columns, so the sections can change without a migration); a meeting can be
-   processed again, which keeps its title.
+   processed again, which keeps its title but writes a new summary over an
+   edited one.
 
 - The UI shows how far processing has got: uploading → upload finished →
   transcription → summary → done (or failed, with an error message).
@@ -38,6 +39,21 @@ A small single-user web app (no login, no user accounts):
 - The header of the details shows the status, the title and a pencil button
   that opens an input with "Save" and "Cancel" in place of the status and the
   title (`PATCH /api/meetings/{id}`; an empty or too long title is a 422).
+- The user can edit the summary (not the transcript): "Edit summary" turns the
+  whole summary into one form with one "Save" and one "Cancel". Name, role and
+  location are small inputs; takeaway, context, likes, dislikes and wants are
+  one text field each. In likes, dislikes and wants every item is a paragraph:
+  the first line is the title, the next lines the explanation (joined into
+  one line), and an empty line separates the items. The backend does the
+  conversion (`app/services/summary.py`): `GET /api/meetings/{id}/summary`
+  returns the form, `PUT` takes the whole edited summary, checks it with the
+  same Pydantic classes as the AI summary, stores it in the same JSON columns
+  and sets `edited_at`. Both answer 409 unless processing is done.
+- A processed interview has a "Process again" button. It and "Try again"
+  always ask for confirmation first (`ConfirmDialog`), because processing uses
+  Gemini tokens; when the summary has been edited, the window also warns that
+  the changes will be lost. Processing again clears `edited_at`, and the
+  details show "Edited" with its date while it is set.
 - The UI texts talk about interviews; the names in the code and the API stay
   "meeting" (`Meeting`, `/api/meetings`).
 - Errors are returned with proper HTTP status codes; API keys come only from

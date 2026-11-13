@@ -54,3 +54,6 @@ class Meeting(Base):
     # section can be added or changed without a migration
     insights: Mapped[dict | None] = mapped_column(JSON)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # When the user last changed the summary (interviewee and insights); None
+    # while the summary is the one the AI wrote
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime)

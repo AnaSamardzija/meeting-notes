@@ -10,8 +10,9 @@ from app.schemas import (
     MeetingListItem,
     MeetingRead,
     MeetingUpdate,
+    SummaryForm,
 )
-from app.services import meetings as meetings_service
+from app.services import meetings as meetings_service, summary as summary_service
 from app.services.processing import process_meeting
 
 # The errors the services raise are turned into HTTP responses in
@@ -38,6 +39,23 @@ def update_meeting(
     db: Session = Depends(get_db),
 ):
     return meetings_service.update_title(db, meeting_id, data.title)
+
+
+# The summary in the shape of the edit form; 409 until processing is done
+@router.get("/{meeting_id}/summary", response_model=SummaryForm)
+def get_summary(meeting_id: int, db: Session = Depends(get_db)):
+    return summary_service.get_summary_form(db, meeting_id)
+
+
+# PUT: the whole summary is sent and replaces the old one. Returns the whole
+# meeting, like the PATCH above
+@router.put("/{meeting_id}/summary", response_model=MeetingDetail)
+def update_summary(
+    meeting_id: int,
+    data: SummaryForm,
+    db: Session = Depends(get_db),
+):
+    return summary_service.update_summary(db, meeting_id, data)
 
 
 @router.post("", response_model=MeetingRead, status_code=status.HTTP_202_ACCEPTED)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getErrorMessage, getMeeting, reprocessMeeting } from '../api'
+import ConfirmDialog from './ConfirmDialog'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
 import MeetingContent from './MeetingContent'
@@ -27,10 +28,15 @@ function MeetingDetails({ meetingId, onBack }) {
   // true while the "process again" request is running
   const [reprocessing, setReprocessing] = useState(false)
   const [reprocessError, setReprocessError] = useState(null)
+  // true while the window that asks to confirm the processing is open
+  const [confirmingReprocess, setConfirmingReprocess] = useState(false)
 
   // false when the meeting is not loaded yet or is not being processed
   const inProgress = meeting !== null && isInProgress(meeting.status)
   const progressStep = inProgress ? PROGRESS_STEPS[meeting.status] : undefined
+  // For the text of the window that asks to confirm the processing
+  const isFailed = meeting?.status === 'failed'
+  const isEdited = Boolean(meeting?.edited_at)
 
   useEffect(() => {
     // Set by the cleanup below when a newer request has started (or the
@@ -93,8 +99,20 @@ function MeetingDetails({ meetingId, onBack }) {
     setAttempt(attempt + 1)
   }
 
-  // The "Try again" button of a failed meeting
-  async function handleReprocess() {
+  // The "Try again" button of a failed meeting and the "Process again" button
+  // of a processed one. Both only open the window that asks to confirm: every
+  // processing uses Gemini tokens, and it writes a new summary over the old
+  // one, even an edited one.
+  function handleReprocessClick() {
+    setConfirmingReprocess(true)
+  }
+
+  function handleReprocessConfirmed() {
+    setConfirmingReprocess(false)
+    reprocess()
+  }
+
+  async function reprocess() {
     setReprocessing(true)
     setReprocessError(null)
     try {
@@ -131,13 +149,27 @@ function MeetingDetails({ meetingId, onBack }) {
             <h2 className="h5 mb-0">Interview details</h2>
           )}
         </div>
-        <button
-          type="button"
-          className="btn btn-outline-secondary"
-          onClick={onBack}
-        >
-          Back
-        </button>
+        <div className="d-flex gap-2">
+          {/* A processed interview can be processed again, e.g. after the
+              prompt has been improved. A failed one has "Try again" below */}
+          {meeting?.status === 'done' && (
+            <button
+              type="button"
+              className="btn btn-outline-secondary text-nowrap"
+              onClick={handleReprocessClick}
+              disabled={reprocessing}
+            >
+              {reprocessing ? 'Starting...' : 'Process again'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={onBack}
+          >
+            Back
+          </button>
+        </div>
       </div>
 
       <div className="card-body">
@@ -147,6 +179,12 @@ function MeetingDetails({ meetingId, onBack }) {
           <Loading text="Loading interview..." />
         ) : (
           <>
+            {/* For a failed meeting the error is shown in its alert below */}
+            {reprocessError && meeting.status !== 'failed' && (
+              <div className="alert alert-danger" role="alert">
+                {reprocessError}
+              </div>
+            )}
             {inProgress && (
               <div
                 className="alert alert-info d-flex align-items-center flex-wrap gap-2"
@@ -172,17 +210,50 @@ function MeetingDetails({ meetingId, onBack }) {
                 <button
                   type="button"
                   className="btn btn-outline-danger btn-sm"
-                  onClick={handleReprocess}
+                  onClick={handleReprocessClick}
                   disabled={reprocessing}
                 >
                   {reprocessing ? 'Starting...' : 'Try again'}
                 </button>
               </div>
             )}
-            <MeetingContent meeting={meeting} />
+            {/* The PUT returns the whole meeting, so it replaces the one on
+                the screen, as for the title */}
+            <MeetingContent meeting={meeting} onSummarySaved={setMeeting} />
           </>
         )}
       </div>
+
+      {/* The text depends on the meeting: a failed one is tried again, a
+          processed one loses its summary, and an edited one loses the
+          changes of the user too (then the button is red) */}
+      <ConfirmDialog
+        open={confirmingReprocess}
+        title={isFailed ? 'Try processing again?' : 'Process the interview again?'}
+        confirmLabel={isFailed ? 'Try again' : 'Process again'}
+        danger={isEdited}
+        onConfirm={handleReprocessConfirmed}
+        onCancel={() => setConfirmingReprocess(false)}
+      >
+        <div className="vstack gap-2">
+          <p className="mb-0">
+            Gemini transcribes and summarizes the interview again. This uses
+            tokens again, which costs money.
+          </p>
+          {isEdited ? (
+            <p className="mb-0">
+              The summary has been edited. The new AI summary replaces your
+              changes, and they cannot be restored.
+            </p>
+          ) : (
+            !isFailed && (
+              <p className="mb-0">
+                The new summary replaces the current one.
+              </p>
+            )
+          )}
+        </div>
+      </ConfirmDialog>
     </div>
   )
 }

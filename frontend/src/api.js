@@ -62,6 +62,21 @@ export async function updateMeeting(id, data) {
   return response.data
 }
 
+// Returns the summary of a processed meeting in the shape of the edit form:
+// { name, role, location, takeaway, context, likes, dislikes, wants }, all of
+// them text. likes, dislikes and wants have one paragraph per item.
+export async function getSummary(id) {
+  const response = await api.get(`/api/meetings/${id}/summary`)
+  return response.data
+}
+
+// Replaces the summary with the edited one (the same shape as getSummary
+// returns) and returns the whole updated meeting.
+export async function updateSummary(id, summary) {
+  const response = await api.put(`/api/meetings/${id}/summary`, summary)
+  return response.data
+}
+
 // Sends the video and the title as multipart/form-data and returns the
 // created meeting. An empty title lets the AI write one. onProgress is called
 // with the percentage (0-100) sent so far.
