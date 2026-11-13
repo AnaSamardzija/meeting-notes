@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict
 
 from app.models import MeetingStatus
 
@@ -19,32 +19,34 @@ UtcDateTime = Annotated[datetime, AfterValidator(_as_utc)]
 
 # The summary of an interview. The same classes describe three things: the
 # JSON that Gemini must return (see app/services/ai.py), what is stored in the
-# JSON columns of app/models.py, and what the API returns. The descriptions
-# become part of the JSON schema, so Gemini reads them too.
+# JSON columns of app/models.py, and what the API returns. What each field
+# should hold is written only in ANALYZE_INSTRUCTIONS in app/services/ai.py,
+# so the rules are in one place. The order of the fields is the order in which
+# Gemini writes them, so it matters (see the same file).
 class Interviewee(BaseModel):
     """The person who was interviewed. Each field is None when the interview
     does not say it."""
 
-    name: str | None = Field(description="Name, only when it is said")
-    role: str | None = Field(description="e.g. 'U17 coach' or 'amateur player'")
-    location: str | None = Field(description="City or country")
+    name: str | None
+    role: str | None
+    location: str | None
 
 
 class InsightItem(BaseModel):
     """One point of feedback."""
 
-    title: str = Field(description="A few words")
+    title: str
     explanation: str
 
 
 class Insights(BaseModel):
     """Everything in the summary except the title and the interviewee."""
 
-    takeaway: str = Field(description="The main conclusion")
-    context: str = Field(description="Who the person is and how they work")
+    context: str
     likes: list[InsightItem]
     dislikes: list[InsightItem]
-    wants: list[InsightItem] = Field(description="The most important first")
+    wants: list[InsightItem]
+    takeaway: str
 
 
 class MeetingRead(BaseModel):

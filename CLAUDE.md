@@ -10,13 +10,19 @@ says about the app, the issue wins and this file is updated as part of the issue
 A small single-user web app (no login, no user accounts):
 1. The user selects a video file (at least MP4) in the React UI and uploads it.
 2. The FastAPI backend converts it to an MP3 audio file (ffmpeg).
-3. Google Gemini transcribes the MP3 in the language that is spoken, then writes,
+3. Google Gemini transcribes the MP3 in the language that is spoken (the main
+   interviewer is labelled Jørgen unless the recording shows otherwise; other
+   speakers by name, or as Interviewer / Interviewee), then writes,
    always in English, a title and the interview summary the team uses: the
    interviewee (name, role and location, only when said), the takeaway (how well
    the product fits the person; paying and usage when mentioned), the context (who
    they are, how they train or work, which tools they use), and likes, dislikes and
    wants (items with a short title and an explanation; wants ordered by importance).
-   Nothing is invented: a section with no content stays empty.
+   Nothing is invented: a section with no content stays empty. Both prompts get a
+   short description of SportAI's products and of who usually leads the
+   interviews (`COMPANY_CONTEXT` in `backend/app/services/ai.py`), so names are
+   spelled right, interviewers are not mixed up with the interviewee, and
+   feedback about other companies' tools goes to the context.
 4. All results are stored in the database (`interviewee` and `insights` are JSON
    columns, so the sections can change without a migration); a meeting can be
    processed again.
