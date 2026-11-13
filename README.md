@@ -1,9 +1,11 @@
 # Meeting Notes AI
 
-A small single-user web app for meeting recordings. You upload a video, the
-backend extracts the audio with ffmpeg, Google Gemini transcribes it and writes
-a summary, the key topics and the action items, and everything is stored in a
-MySQL database so the processed meetings can be opened again later.
+A small single-user web app for recordings of user interviews with players and
+coaches. You upload a video, the backend extracts the audio with ffmpeg, Google
+Gemini transcribes it and writes an interview summary in English (who was
+interviewed, the takeaway, the context, and what they like, dislike and want),
+and everything is stored in a MySQL database so the processed interviews can be
+opened again later.
 
 ## Project structure
 
@@ -195,9 +197,15 @@ Open http://localhost:5173.
 
 ## Using the app
 
-1. Click **Upload meeting**, choose a video (`.mp4`, `.mov`, `.webm` or `.mkv`)
-   and click **Upload**.
-2. The meeting appears on the list. Its status changes by itself while it is
-   processed: Uploaded, Transcribing, Summarizing, Done (or Failed).
-3. Click **View** to see the transcript, the summary, the key topics and the
-   action items. A failed meeting shows the reason and a **Try again** button.
+1. Click **Upload interview**, choose a video (`.mp4`, `.mov`, `.webm` or
+   `.mkv`) and click **Upload**.
+2. The interview appears on the list. Its status changes by itself while it is
+   processed: Uploaded, Transcribing, Summarizing, Done (or Failed). Once it is
+   done, the list shows who was interviewed.
+3. Click **View** to see the key insights (Takeaway, Context, What they like,
+   What they dislike, What they want) and the transcript, which stays in the
+   language of the interview. A failed interview shows the reason and a
+   **Try again** button.
+
+Interviews processed before the summary format changed are shown as failed,
+with a message to process them again: click **Try again**.

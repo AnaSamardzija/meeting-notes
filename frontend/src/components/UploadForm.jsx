@@ -63,7 +63,7 @@ function UploadForm({ onUploaded, onCancel }) {
       className="border rounded bg-body-tertiary p-3 mb-4"
       onSubmit={handleSubmit}
     >
-      <h3 className="h6">Upload a meeting</h3>
+      <h3 className="h6">Upload an interview</h3>
 
       <div className="mb-3">
         {/* htmlFor is the "for" attribute of HTML: it ties the label to the

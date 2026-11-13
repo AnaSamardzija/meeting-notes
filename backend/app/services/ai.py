@@ -17,6 +17,7 @@ from google.genai._gaos.lib.compat_errors import (
 from pydantic import BaseModel, ValidationError
 
 from app.config import settings
+from app.schemas import InsightItem, Insights, Interviewee
 
 logger = logging.getLogger(__name__)
 
@@ -45,21 +46,41 @@ TRANSCRIBE_PROMPT = (
 )
 
 ANALYZE_PROMPT = (
-    "Below is the transcript of a meeting. Every line begins with the label of "
-    "the person speaking. Give the meeting a short title (at most 10 words), "
-    "write a concise summary (2 to 4 sentences), list the key topics, and list "
-    "the action items. "
-    "The person responsible for an action item is the one who takes it on "
-    "('I will ...', 'I can ...') or the one it is given to. "
-    "As the assignee give that person's real name, but only when the name is "
-    "actually said in the transcript. Use null when the name is not known or "
-    "when nobody takes the task on; never guess a name and never use a label "
-    "such as 'Speaker 1' as the assignee. In the title and the summary, refer "
-    "to people by name or role, not by such labels. "
-    "Use only what is said in the transcript and do not invent anything. "
-    "Write the title, the summary, the key topics and the action items in the "
-    "language that is spoken in the meeting, not in the language of these "
-    "instructions.\n\n"
+    "Below is the transcript of a user interview. Someone from the product team "
+    "talks with a player or a coach to get their feedback on the product. Every "
+    "line begins with the label of the person speaking. The interviewee is the "
+    "player or coach who gives the feedback, not the interviewer.\n\n"
+    "Summarize the interview. The summary is about the interviewee and their "
+    "perspective, not only a list of feedback. Fill in these fields:\n"
+    "- title: a short title for the interview, at most 10 words.\n"
+    "- interviewee: the interviewee's name, role (for example 'U17 coach' or "
+    "'amateur tennis player') and location (a city or a country). Give each of "
+    "them only when it is said in the interview, otherwise null. Never guess a "
+    "name and never use a label such as 'Speaker 1' as the name.\n"
+    "- insights.takeaway: the main conclusion: how well the product fits this "
+    "person and why. When the interview mentions it, also say whether they "
+    "would pay for the product, how much, and how often they would use it.\n"
+    "- insights.context: who the interviewee is, how they train or work, and "
+    "which tools they use.\n"
+    "- insights.likes: what they like about the product.\n"
+    "- insights.dislikes: what bothers them, when they do not ask for a "
+    "concrete solution.\n"
+    "- insights.wants: what they ask for, when they ask for a concrete solution "
+    "or feature. Put the one that matters most to them first.\n"
+    "Every item in likes, dislikes and wants has a short title (a few words) "
+    "and an explanation.\n\n"
+    "Rules:\n"
+    "- In an explanation, say why the point matters to the interviewee and how "
+    "much, but only when the interview shows it.\n"
+    "- Put each point in one section only. Something they want solved goes to "
+    "wants, not to dislikes as well.\n"
+    "- Let the length follow the amount of feedback: little feedback gives a "
+    "short summary. Do not pad, repeat or generalize.\n"
+    "- Use only what is said in the interview and do not invent anything. Leave "
+    "a list empty when the interview has nothing for it.\n"
+    "- Refer to people by name or role, never by labels such as 'Speaker 1'.\n"
+    "- Write the title and the whole summary in English, even when the "
+    "interview is in another language.\n\n"
     "Transcript:\n"
 )
 
@@ -69,19 +90,12 @@ class AIServiceError(Exception):
 
 
 # The shape of the JSON that Gemini must return for the analysis. The field
-# names match the columns in app/models.py
-class ActionItemResult(BaseModel):
-    # A real name said in the meeting; None when the meeting does not say who
-    # is responsible or the person's name is not known
-    assignee: str | None
-    description: str
-
-
+# names match the columns in app/models.py; interviewee and insights are
+# stored as they are, in their JSON columns
 class MeetingAnalysis(BaseModel):
     title: str
-    summary: str
-    key_topics: list[str]
-    action_items: list[ActionItemResult]
+    interviewee: Interviewee
+    insights: Insights
 
 
 def _client() -> genai.Client:
@@ -219,7 +233,7 @@ def transcribe_audio(audio_path: Path) -> str:
 
 
 def analyze_transcript(transcript: str) -> MeetingAnalysis:
-    """Return the title, summary, key topics and action items of a meeting.
+    """Return the title, the interviewee and the insights of an interview.
 
     Raises AIServiceError if the transcript is empty or Gemini does not return
     an answer in the expected shape.
@@ -267,10 +281,30 @@ def analyze_transcript(transcript: str) -> MeetingAnalysis:
 
     # The schema only checks the types, so tidy up the values themselves
     analysis.title = analysis.title.strip()[:TITLE_MAX_LENGTH]
-    analysis.summary = analysis.summary.strip()
-    analysis.key_topics = [topic.strip() for topic in analysis.key_topics]
-    for item in analysis.action_items:
-        item.description = item.description.strip()
-        # "" or spaces instead of null still means that nobody is named
-        item.assignee = (item.assignee or "").strip() or None
+
+    person = analysis.interviewee
+    person.name = _blank_to_none(person.name)
+    person.role = _blank_to_none(person.role)
+    person.location = _blank_to_none(person.location)
+
+    insights = analysis.insights
+    insights.takeaway = insights.takeaway.strip()
+    insights.context = insights.context.strip()
+    insights.likes = _tidy_items(insights.likes)
+    insights.dislikes = _tidy_items(insights.dislikes)
+    insights.wants = _tidy_items(insights.wants)
     return analysis
+
+
+def _blank_to_none(value: str | None) -> str | None:
+    """Return None for an empty value: an empty string or spaces instead of
+    null still mean that the value is not known."""
+    return (value or "").strip() or None
+
+
+def _tidy_items(items: list[InsightItem]) -> list[InsightItem]:
+    """Strip the texts of the items and drop the ones with no title."""
+    for item in items:
+        item.title = item.title.strip()
+        item.explanation = item.explanation.strip()
+    return [item for item in items if item.title]

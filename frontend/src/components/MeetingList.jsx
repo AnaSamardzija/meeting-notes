@@ -5,6 +5,23 @@ import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
 import StatusBadge from './StatusBadge'
 
+// Who was interviewed: the name, and the role under it in smaller letters.
+// interviewee is null until the meeting is processed, and each of its fields
+// is null when the interview does not say it.
+function IntervieweeCell({ interviewee }) {
+  const name = interviewee?.name
+  const role = interviewee?.role
+  if (!name && !role) {
+    return <span className="text-secondary">—</span>
+  }
+  return (
+    <>
+      {name && <div>{name}</div>}
+      {role && <div className="small text-secondary">{role}</div>}
+    </>
+  )
+}
+
 // reloadKey: the list is loaded again every time this number changes.
 // onView: called with the id of the meeting whose View button was clicked.
 function MeetingList({ reloadKey, onView }) {
@@ -28,7 +45,7 @@ function MeetingList({ reloadKey, onView }) {
       })
       .catch((error) => {
         if (!ignore) {
-          setError(getErrorMessage(error, 'Could not load the meetings'))
+          setError(getErrorMessage(error, 'Could not load the interviews'))
         }
       })
 
@@ -43,7 +60,7 @@ function MeetingList({ reloadKey, onView }) {
     meetings.some((meeting) => isInProgress(meeting.status))
 
   // Loads the list again every few seconds while a meeting is being
-  // processed, so its status and its number of action items stay up to date.
+  // processed, so its status and its interviewee stay up to date.
   // The cleanup stops the timer when no meeting is in progress any more
   // (hasInProgress changes) and when the user leaves the list.
   useEffect(() => {
@@ -81,13 +98,13 @@ function MeetingList({ reloadKey, onView }) {
   }
 
   if (meetings === null) {
-    return <Loading text="Loading meetings..." />
+    return <Loading text="Loading interviews..." />
   }
 
   if (meetings.length === 0) {
     return (
       <p className="text-secondary text-center py-4 mb-0">
-        No meetings yet. Upload your first meeting to get started.
+        No interviews yet. Upload your first interview to get started.
       </p>
     )
   }
@@ -99,10 +116,10 @@ function MeetingList({ reloadKey, onView }) {
       <table className="table table-hover align-middle mb-0">
         <thead>
           <tr>
-            <th>Meeting</th>
+            <th>Interview</th>
+            <th>Interviewee</th>
             <th>Uploaded</th>
             <th>Status</th>
-            <th className="text-end">Action items</th>
             <th></th>
           </tr>
         </thead>
@@ -113,13 +130,15 @@ function MeetingList({ reloadKey, onView }) {
               {/* The title is written by the AI, so it is missing until the
                   meeting is processed */}
               <td>{meeting.title ?? meeting.original_filename}</td>
+              <td>
+                <IntervieweeCell interviewee={meeting.interviewee} />
+              </td>
               <td className="text-nowrap">
                 {new Date(meeting.uploaded_at).toLocaleString()}
               </td>
               <td>
                 <StatusBadge status={meeting.status} />
               </td>
-              <td className="text-end">{meeting.action_item_count}</td>
               <td className="text-end">
                 <button
                   type="button"

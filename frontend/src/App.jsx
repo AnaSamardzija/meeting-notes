@@ -57,14 +57,14 @@ function App() {
         ) : (
           <div className="card shadow-sm">
             <div className="card-header bg-white d-flex justify-content-between align-items-center py-3">
-              <h2 className="h5 mb-0">My Meetings</h2>
+              <h2 className="h5 mb-0">Interviews</h2>
               {!showUpload && (
                 <button
                   type="button"
                   className="btn btn-primary"
                   onClick={handleOpenUpload}
                 >
-                  Upload meeting
+                  Upload interview
                 </button>
               )}
             </div>

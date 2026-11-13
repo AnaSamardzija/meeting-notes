@@ -10,15 +10,25 @@ says about the app, the issue wins and this file is updated as part of the issue
 A small single-user web app (no login, no user accounts):
 1. The user selects a video file (at least MP4) in the React UI and uploads it.
 2. The FastAPI backend converts it to an MP3 audio file (ffmpeg).
-3. Google Gemini transcribes the MP3, then generates a title, a short summary, key
-   topics and action items (with the responsible person when the meeting mentions it).
-4. All results are stored in the database; a meeting can be processed again.
+3. Google Gemini transcribes the MP3 in the language that is spoken, then writes,
+   always in English, a title and the interview summary the team uses: the
+   interviewee (name, role and location, only when said), the takeaway (how well
+   the product fits the person; paying and usage when mentioned), the context (who
+   they are, how they train or work, which tools they use), and likes, dislikes and
+   wants (items with a short title and an explanation; wants ordered by importance).
+   Nothing is invented: a section with no content stays empty.
+4. All results are stored in the database (`interviewee` and `insights` are JSON
+   columns, so the sections can change without a migration); a meeting can be
+   processed again.
 
 - The UI shows how far processing has got: uploading → upload finished →
-  transcription → summary and action items → done (or failed, with an error message).
-- Meetings list (name, date, number of action items, View button) and meeting
-  details (information, transcription, summary, action items), with loading,
-  processing, error and empty states.
+  transcription → summary → done (or failed, with an error message).
+- Interviews list (title, interviewee, date, status, View button) and interview
+  details (information, "Name: key insights" with Takeaway, Context, What they
+  like, What they dislike, What they want, and the transcript; empty sections are
+  not shown), with loading, processing, error and empty states.
+- The UI texts talk about interviews; the names in the code and the API stay
+  "meeting" (`Meeting`, `/api/meetings`).
 - Errors are returned with proper HTTP status codes; API keys come only from
   environment variables.
 

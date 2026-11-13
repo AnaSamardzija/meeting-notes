@@ -9,7 +9,7 @@ const api = axios.create({
 })
 
 // Turns an error of a request into a message for the user.
-// fallback: what could not be done, e.g. 'Could not load the meetings'. It is
+// fallback: what could not be done, e.g. 'Could not load the interviews'. It is
 // used when the backend answered without a message of its own.
 export function getErrorMessage(error, fallback) {
   // error.response exists only when the backend answered
@@ -37,8 +37,8 @@ export async function getMeetings() {
   return response.data
 }
 
-// Returns everything about one meeting: the transcript, the summary, the key
-// topics and the action items. They are empty until the processing is done.
+// Returns everything about one meeting (an interview): the transcript, the
+// interviewee and the insights. They are empty until the processing is done.
 export async function getMeeting(id) {
   const response = await api.get(`/api/meetings/${id}`)
   return response.data

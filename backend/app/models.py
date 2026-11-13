@@ -1,9 +1,9 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, Enum, String, Text
 from sqlalchemy.dialects.mysql import LONGTEXT
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
@@ -44,29 +44,12 @@ class Meeting(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     # LONGTEXT: TEXT holds only 64 KB, which a long meeting can exceed
     transcript: Mapped[str | None] = mapped_column(LONGTEXT)
-    summary: Mapped[str | None] = mapped_column(Text)
-    key_topics: Mapped[list[str] | None] = mapped_column(JSON)
+    # The person who was interviewed: {"name", "role", "location"}, each of
+    # them null when the interview does not say it. The shape is Interviewee
+    # in app/schemas.py
+    interviewee: Mapped[dict | None] = mapped_column(JSON)
+    # The rest of the summary: {"takeaway", "context", "likes", "dislikes",
+    # "wants"}, the shape of Insights in app/schemas.py. One JSON column, so a
+    # section can be added or changed without a migration
+    insights: Mapped[dict | None] = mapped_column(JSON)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime)
-
-    # cascade: deleting a meeting through the ORM deletes its action items.
-    # passive_deletes: let the database do it (ON DELETE CASCADE) instead of
-    # loading the items first.
-    action_items: Mapped[list["ActionItem"]] = relationship(
-        back_populates="meeting",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
-
-
-class ActionItem(Base):
-    __tablename__ = "action_items"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    meeting_id: Mapped[int] = mapped_column(
-        ForeignKey("meetings.id", ondelete="CASCADE"), index=True
-    )
-    # Empty when the meeting does not say who is responsible
-    assignee: Mapped[str | None] = mapped_column(String(255))
-    description: Mapped[str] = mapped_column(Text)
-
-    meeting: Mapped["Meeting"] = relationship(back_populates="action_items")

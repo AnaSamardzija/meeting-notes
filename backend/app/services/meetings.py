@@ -4,12 +4,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import BinaryIO
 
-from sqlalchemy import Row, func, select
+from sqlalchemy import Row, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import ActionItem, Meeting, MeetingStatus
+from app.models import Meeting, MeetingStatus
 from app.services.processing import IN_PROGRESS_STATUSES, reset_results
 from app.storage import ALLOWED_EXTENSIONS, FileTooLargeError, save_upload
 
@@ -43,21 +43,15 @@ class MeetingInProgressError(Exception):
 
 def list_meetings(db: Session) -> Sequence[Row]:
     """Return the rows of the meetings list, the newest first."""
-    # Counted by the database, one subquery per row of the same SELECT, so the
-    # action items themselves are never loaded
-    action_item_count = (
-        select(func.count(ActionItem.id))
-        .where(ActionItem.meeting_id == Meeting.id)
-        .scalar_subquery()
-    )
-    # Only the columns the list shows: the transcript is not read at all
+    # Only the columns the list shows: the transcript and the insights are not
+    # read at all
     query = select(
         Meeting.id,
         Meeting.original_filename,
         Meeting.title,
         Meeting.status,
         Meeting.uploaded_at,
-        action_item_count.label("action_item_count"),
+        Meeting.interviewee,
     ).order_by(
         # uploaded_at has a precision of one second, so id breaks the tie
         Meeting.uploaded_at.desc(),
@@ -173,7 +167,8 @@ def start_reprocessing(db: Session, meeting_id: int) -> Meeting:
     if meeting.status in IN_PROGRESS_STATUSES:
         raise MeetingInProgressError("The meeting is already being processed")
 
-    # The old results are removed first, so the action items are not doubled
+    # The old results are removed first, so the details do not show them while
+    # the new ones are being made
     reset_results(meeting)
     meeting.status = MeetingStatus.TRANSCRIBING
     db.commit()

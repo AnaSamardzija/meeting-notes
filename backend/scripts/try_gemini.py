@@ -5,8 +5,8 @@ Run it from the backend/ folder, with the virtual environment activated:
     python -m scripts.try_gemini uploads/4/audio.mp3
 
 It calls the two functions of app/services/ai.py, the same ones the
-application uses, and prints the transcript, the title, the summary, the key
-topics and the action items to the terminal.
+application uses, and prints the transcript, the title, the interviewee and
+the insights to the terminal.
 """
 
 import sys
@@ -14,7 +14,16 @@ import time
 from pathlib import Path
 
 from app.config import settings
+from app.schemas import InsightItem
 from app.services.ai import AIServiceError, analyze_transcript, transcribe_audio
+
+
+def print_items(heading: str, items: list[InsightItem]) -> None:
+    print(f"\n=== {heading} ===")
+    if not items:
+        print("(none)")
+    for item in items:
+        print(f"- {item.title}: {item.explanation}")
 
 
 def main() -> int:
@@ -47,18 +56,21 @@ def main() -> int:
         print(f"Error: {error}")
         return 1
 
+    person = analysis.interviewee
+    insights = analysis.insights
     print("\n=== Title ===")
     print(analysis.title)
-    print("\n=== Summary ===")
-    print(analysis.summary)
-    print("\n=== Key topics ===")
-    for topic in analysis.key_topics:
-        print(f"- {topic}")
-    print("\n=== Action items ===")
-    if not analysis.action_items:
-        print("(none)")
-    for item in analysis.action_items:
-        print(f"- {item.assignee or 'Unassigned'}: {item.description}")
+    print("\n=== Interviewee ===")
+    print(f"Name: {person.name or '(unknown)'}")
+    print(f"Role: {person.role or '(unknown)'}")
+    print(f"Location: {person.location or '(unknown)'}")
+    print("\n=== Takeaway ===")
+    print(insights.takeaway)
+    print("\n=== Context ===")
+    print(insights.context)
+    print_items("What they like", insights.likes)
+    print_items("What they dislike", insights.dislikes)
+    print_items("What they want", insights.wants)
     return 0
 
 
