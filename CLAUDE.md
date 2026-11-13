@@ -67,9 +67,13 @@ A small single-user web app (no login, no user accounts):
   into tests, fixtures, examples, logs or documentation; use made-up data only.
 - Every change to the database models comes with an Alembic migration; never edit a
   migration that has already been applied.
-- Every issue adds or changes backend tests for what it changes, and `pytest` must
-  pass at the end of the issue. Tests never call Gemini or ffmpeg: they use the mocks
-  from `backend/tests/conftest.py`.
+- Write only the tests that are needed: for security (login, permissions,
+  ownership), for anything whose failure would lose data or leave an interview
+  stuck, and for logic that breaks easily (such as parsing). No tests for simple
+  endpoints, UI texts or what an existing test already covers. When a change breaks
+  an existing test, update that test. `pytest` must pass at the end of every issue.
+  Tests never call Gemini or ffmpeg: they use the mocks from
+  `backend/tests/conftest.py`.
 - Never run commands that create, change or delete Google Cloud resources unless
   explicitly asked.
 - Never commit or push unless explicitly asked.
