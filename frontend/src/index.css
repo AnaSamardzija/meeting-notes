@@ -12,3 +12,19 @@ body {
   overflow-y: auto;
   white-space: pre-wrap;
 }
+
+/* The window of ConfirmDialog. Without padding, a click on the <dialog>
+   itself can only be a click outside the window (see ConfirmDialog.jsx). */
+.confirm-dialog {
+  width: calc(100% - 2rem);
+  max-width: 32rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--bs-border-radius-lg);
+  box-shadow: var(--bs-box-shadow-lg);
+}
+
+/* The darkened page behind the window */
+.confirm-dialog::backdrop {
+  background-color: rgb(0 0 0 / 50%);
+}

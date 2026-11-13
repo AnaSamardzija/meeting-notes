@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getErrorMessage, getMeeting, reprocessMeeting } from '../api'
+import ConfirmDialog from './ConfirmDialog'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
 import MeetingContent from './MeetingContent'
@@ -27,6 +28,8 @@ function MeetingDetails({ meetingId, onBack }) {
   // true while the "process again" request is running
   const [reprocessing, setReprocessing] = useState(false)
   const [reprocessError, setReprocessError] = useState(null)
+  // true while the window that asks to confirm the processing is open
+  const [confirmingReprocess, setConfirmingReprocess] = useState(false)
 
   // false when the meeting is not loaded yet or is not being processed
   const inProgress = meeting !== null && isInProgress(meeting.status)
@@ -93,8 +96,23 @@ function MeetingDetails({ meetingId, onBack }) {
     setAttempt(attempt + 1)
   }
 
-  // The "Try again" button of a failed meeting
-  async function handleReprocess() {
+  // The "Try again" button of a failed meeting and the "Process again" button
+  // of a processed one. The processing writes a new summary over the old one,
+  // so when the user has edited the summary, they are asked first.
+  function handleReprocessClick() {
+    if (meeting.edited_at) {
+      setConfirmingReprocess(true)
+    } else {
+      reprocess()
+    }
+  }
+
+  function handleReprocessConfirmed() {
+    setConfirmingReprocess(false)
+    reprocess()
+  }
+
+  async function reprocess() {
     setReprocessing(true)
     setReprocessError(null)
     try {
@@ -131,13 +149,27 @@ function MeetingDetails({ meetingId, onBack }) {
             <h2 className="h5 mb-0">Interview details</h2>
           )}
         </div>
-        <button
-          type="button"
-          className="btn btn-outline-secondary"
-          onClick={onBack}
-        >
-          Back
-        </button>
+        <div className="d-flex gap-2">
+          {/* A processed interview can be processed again, e.g. after the
+              prompt has been improved. A failed one has "Try again" below */}
+          {meeting?.status === 'done' && (
+            <button
+              type="button"
+              className="btn btn-outline-secondary text-nowrap"
+              onClick={handleReprocessClick}
+              disabled={reprocessing}
+            >
+              {reprocessing ? 'Starting...' : 'Process again'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={onBack}
+          >
+            Back
+          </button>
+        </div>
       </div>
 
       <div className="card-body">
@@ -147,6 +179,12 @@ function MeetingDetails({ meetingId, onBack }) {
           <Loading text="Loading interview..." />
         ) : (
           <>
+            {/* For a failed meeting the error is shown in its alert below */}
+            {reprocessError && meeting.status !== 'failed' && (
+              <div className="alert alert-danger" role="alert">
+                {reprocessError}
+              </div>
+            )}
             {inProgress && (
               <div
                 className="alert alert-info d-flex align-items-center flex-wrap gap-2"
@@ -172,17 +210,34 @@ function MeetingDetails({ meetingId, onBack }) {
                 <button
                   type="button"
                   className="btn btn-outline-danger btn-sm"
-                  onClick={handleReprocess}
+                  onClick={handleReprocessClick}
                   disabled={reprocessing}
                 >
                   {reprocessing ? 'Starting...' : 'Try again'}
                 </button>
               </div>
             )}
-            <MeetingContent meeting={meeting} />
+            {/* The PUT returns the whole meeting, so it replaces the one on
+                the screen, as for the title */}
+            <MeetingContent meeting={meeting} onSummarySaved={setMeeting} />
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmingReprocess}
+        title="Process the interview again?"
+        confirmLabel="Process again"
+        danger
+        onConfirm={handleReprocessConfirmed}
+        onCancel={() => setConfirmingReprocess(false)}
+      >
+        <p className="mb-0">
+          The summary of this interview has been edited. Processing it again
+          writes a new AI summary over your changes, and they cannot be
+          restored.
+        </p>
+      </ConfirmDialog>
     </div>
   )
 }

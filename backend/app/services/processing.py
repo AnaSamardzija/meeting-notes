@@ -39,6 +39,8 @@ def reset_results(meeting: Meeting) -> None:
     meeting.insights = None
     meeting.error_message = None
     meeting.processed_at = None
+    # The new summary is written by the AI, so it is no longer an edited one
+    meeting.edited_at = None
 
 
 def _mark_failed(db: Session, meeting: Meeting, meeting_id: int, message: str) -> None:

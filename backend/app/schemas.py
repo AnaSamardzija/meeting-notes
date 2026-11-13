@@ -89,6 +89,25 @@ class MeetingUpdate(BaseModel):
     title: Title
 
 
+class SummaryForm(BaseModel):
+    """The summary as the user edits it: what GET /api/meetings/{id}/summary
+    returns and PUT expects, the whole summary at once.
+
+    An empty string means that the value is not known or the section is
+    empty. likes, dislikes and wants are text with one paragraph per item (see
+    app/services/summary.py); the backend turns them into InsightItem lists.
+    """
+
+    name: str
+    role: str
+    location: str
+    takeaway: str
+    context: str
+    likes: str
+    dislikes: str
+    wants: str
+
+
 class MeetingDetail(MeetingRead):
     """Everything about one meeting. The AI fields stay empty until processing
     is done."""
@@ -98,3 +117,6 @@ class MeetingDetail(MeetingRead):
     interviewee: Interviewee | None
     insights: Insights | None
     processed_at: UtcDateTime | None
+    # Set when the user has changed the summary, so the frontend can warn that
+    # processing the meeting again replaces the changes
+    edited_at: UtcDateTime | None

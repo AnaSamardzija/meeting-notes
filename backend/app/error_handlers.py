@@ -11,6 +11,7 @@ from app.services.meetings import (
     UnsupportedMediaError,
     UploadSaveError,
 )
+from app.services.summary import SummaryNotEditableError
 from app.storage import FileTooLargeError
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 SERVICE_ERROR_STATUS_CODES: dict[type[Exception], int] = {
     MeetingNotFoundError: status.HTTP_404_NOT_FOUND,
     MeetingInProgressError: status.HTTP_409_CONFLICT,
+    SummaryNotEditableError: status.HTTP_409_CONFLICT,
     EmptyFileError: status.HTTP_400_BAD_REQUEST,
     FileTooLargeError: status.HTTP_413_CONTENT_TOO_LARGE,
     UnsupportedMediaError: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
