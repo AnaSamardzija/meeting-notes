@@ -1,5 +1,13 @@
 import { useState } from 'react'
+import CopyButton from './CopyButton'
 import SummaryForm from './SummaryForm'
+import {
+  copySummary,
+  copyText,
+  roleAndLocation,
+  SUMMARY_HEADINGS,
+  summaryHeader,
+} from '../summaryCopy'
 
 // One section of the insights (likes, dislikes or wants): a heading and its
 // items, each with a bold title. Nothing is shown when the section is empty.
@@ -42,6 +50,10 @@ function MeetingContent({ meeting, onSummarySaved }) {
   // otherwise). The form is hidden as well if the processing starts again
   // while it is open.
   const canEdit = meeting.status === 'done'
+  // The message of the last copy that failed; null when there is none. The
+  // copy buttons are shown, like "Edit summary", only when the processing is
+  // done.
+  const [copyError, setCopyError] = useState(null)
 
   function handleSaved(updated) {
     onSummarySaved(updated)
@@ -49,10 +61,7 @@ function MeetingContent({ meeting, onSummarySaved }) {
   }
   // The name, the role and the location are each null when the interview
   // does not say them
-  const name = interviewee?.name
-  const roleAndLocation = [interviewee?.role, interviewee?.location]
-    .filter(Boolean)
-    .join(' · ')
+  const roleLine = roleAndLocation(interviewee)
 
   return (
     <>
@@ -82,6 +91,12 @@ function MeetingContent({ meeting, onSummarySaved }) {
         )}
       </dl>
 
+      {copyError && canEdit && (
+        <div className="alert alert-danger mt-3 mb-0" role="alert">
+          {copyError}
+        </div>
+      )}
+
       {editing && canEdit ? (
         <SummaryForm
           meetingId={meeting.id}
@@ -91,44 +106,65 @@ function MeetingContent({ meeting, onSummarySaved }) {
       ) : insights && (
         <section className="mt-4">
           <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
-            <h3 className="h5 mb-0">
-              {name ? `${name}: key insights` : 'Key insights'}
-            </h3>
+            <h3 className="h5 mb-0">{summaryHeader(interviewee)}</h3>
             {canEdit && (
-              <button
-                type="button"
-                className="btn btn-outline-primary btn-sm"
-                onClick={() => setEditing(true)}
-              >
-                Edit summary
-              </button>
+              <div className="d-flex gap-2">
+                {/* Copies what is on the screen, with the user's changes:
+                    after "Save" the meeting is replaced by the saved one */}
+                <CopyButton
+                  label="Copy summary"
+                  onCopy={() => copySummary(meeting)}
+                  onError={setCopyError}
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline-primary btn-sm text-nowrap"
+                  onClick={() => setEditing(true)}
+                >
+                  Edit summary
+                </button>
+              </div>
             )}
           </div>
-          {roleAndLocation && (
-            <p className="text-secondary mb-0">{roleAndLocation}</p>
-          )}
+          {roleLine && <p className="text-secondary mb-0">{roleLine}</p>}
 
           {insights.takeaway && (
             <section className="mt-3">
-              <h4 className="h6">Takeaway</h4>
+              <h4 className="h6">{SUMMARY_HEADINGS.takeaway}</h4>
               <p className="mb-0">{insights.takeaway}</p>
             </section>
           )}
           {insights.context && (
             <section className="mt-3">
-              <h4 className="h6">Context</h4>
+              <h4 className="h6">{SUMMARY_HEADINGS.context}</h4>
               <p className="mb-0">{insights.context}</p>
             </section>
           )}
-          <InsightList heading="What they like" items={insights.likes} />
-          <InsightList heading="What they dislike" items={insights.dislikes} />
-          <InsightList heading="What they want" items={insights.wants} ordered />
+          <InsightList heading={SUMMARY_HEADINGS.likes} items={insights.likes} />
+          <InsightList
+            heading={SUMMARY_HEADINGS.dislikes}
+            items={insights.dislikes}
+          />
+          <InsightList
+            heading={SUMMARY_HEADINGS.wants}
+            items={insights.wants}
+            ordered
+          />
         </section>
       )}
 
       {meeting.transcript && (
         <section className="mt-4">
-          <h3 className="h6">Transcript</h3>
+          <div className="d-flex justify-content-between align-items-center gap-2 mb-2">
+            <h3 className="h6 mb-0">Transcript</h3>
+            {canEdit && (
+              <CopyButton
+                label="Copy transcript"
+                onCopy={() => copyText(meeting.transcript)}
+                onError={setCopyError}
+              />
+            )}
+          </div>
           <div className="transcript border rounded bg-body-tertiary p-3">
             {meeting.transcript}
           </div>

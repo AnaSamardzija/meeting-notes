@@ -54,6 +54,13 @@ A small single-user web app (no login, no user accounts):
   Gemini tokens; when the summary has been edited, the window also warns that
   the changes will be lost. Processing again clears `edited_at`, and the
   details show "Edited" with its date while it is set.
+- A processed interview has "Copy summary" and "Copy transcript" buttons
+  (`frontend/src/summaryCopy.js`, `CopyButton`). The summary is copied as it
+  is shown (with the user's changes, without empty sections), both as HTML
+  (bold headings, lists) for email and Slack and as plain text; the
+  transcript as plain text. The button shows "Copied" for a moment, and an
+  error message appears when the browser does not allow the clipboard (it
+  works only on https or localhost).
 - The UI texts talk about interviews; the names in the code and the API stay
   "meeting" (`Meeting`, `/api/meetings`).
 - Errors are returned with proper HTTP status codes; API keys come only from
