@@ -153,3 +153,23 @@ was needed: it is part of the same `google-genai` 2.29.0 package.
 
 The audio still goes through the Files API first and is deleted right after
 the call; only the way the request points to it changed.
+
+## Measuring time and tokens
+
+The measurements above were made with the old prompts, written for meetings
+(summary, key topics, action items). They do not hold for the interview
+format and its longer instructions, so they should not be used to estimate
+the cost or the duration of processing.
+
+The application now measures every call itself: after each Gemini call it
+writes one log line, for example
+
+```
+Gemini usage: meeting_id=12 step=transcription model=gemini-3.8-flash status=completed duration_seconds=41.2 input_tokens=13834 output_tokens=1898 thought_tokens=7600 audio_seconds=98.5
+```
+
+The numbers come from `usage` in the answer of the Interactions API; the
+length of the recording comes from ffprobe. A failed call whose answer came
+back is logged as well, and so is every processing again, because both are
+charged. The price is not computed, because prices change: the exact cost is
+shown in the billing of the Google Cloud project.

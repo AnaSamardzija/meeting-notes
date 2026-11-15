@@ -6,6 +6,7 @@ each test decides what the "answer" is.
 """
 
 import json
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -147,3 +148,52 @@ def test_analyze_transcript_rejects_an_answer_without_a_takeaway(fake_gemini):
     # pytest.raises: the test passes only if this error is raised inside
     with pytest.raises(AIServiceError, match="unexpected format"):
         analyze_transcript(TRANSCRIPT)
+
+
+def test_a_failed_answer_is_logged_with_its_usage_but_without_its_content(
+    fake_gemini, caplog
+):
+    # An answer that came back but is not usable (the takeaway is missing):
+    # Google charges for it, so it must be logged, but its text is the
+    # content of the interview and must not be
+    context = "Coaches a U15 team and plans every session in a notebook."
+    fake_gemini.interactions.create.return_value = SimpleNamespace(
+        status="completed",
+        output_text=json.dumps(
+            {
+                "title": "Youth coach on planning training sessions",
+                "interviewee": {"name": None, "role": None, "location": None},
+                "insights": {
+                    "context": context,
+                    "likes": [],
+                    "dislikes": [],
+                    "wants": [],
+                },
+            }
+        ),
+        usage=SimpleNamespace(
+            total_input_tokens=1200,
+            total_output_tokens=300,
+            total_thought_tokens=450,
+        ),
+    )
+    # caplog collects the log records written during the test
+    caplog.set_level(logging.INFO, logger="app.services.ai")
+
+    with pytest.raises(AIServiceError):
+        analyze_transcript(TRANSCRIPT, meeting_id=7)
+
+    usage_records = [r for r in caplog.records if hasattr(r, "input_tokens")]
+    assert len(usage_records) == 1
+    record = usage_records[0]
+    # The numbers are separate fields of the record, not only in the text
+    assert (record.meeting_id, record.step) == (7, "analysis")
+    assert (record.input_tokens, record.output_tokens, record.thought_tokens) == (
+        1200,
+        300,
+        450,
+    )
+    # Neither the answer nor the transcript reached any log line
+    for logged in caplog.records:
+        assert context not in logged.getMessage()
+        assert "notebook" not in logged.getMessage()

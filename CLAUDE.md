@@ -61,6 +61,16 @@ A small single-user web app (no login, no user accounts):
   transcript as plain text. The button shows "Copied" for a moment, and an
   error message appears when the browser does not allow the clipboard (it
   works only on https or localhost).
+- After every Gemini call whose answer came back (also a failed one, and on
+  every processing again), `_log_usage` in `app/services/ai.py` writes one
+  INFO log line: meeting id, step (`transcription` or `analysis`), model,
+  status, duration of the call in seconds, input, output and thought tokens
+  (from `usage` of the Interactions API) and, for the transcription, the
+  length of the MP3 in seconds (`get_audio_duration`, ffprobe). The numbers
+  are in the text and as separate fields of the record (`extra`). No content
+  of the interview goes to the log, no price is computed (the exact cost is in
+  the billing of the Google Cloud project), and nothing is stored in the
+  database; a table is added only if the numbers are ever needed in the app.
 - The UI texts talk about interviews; the names in the code and the API stay
   "meeting" (`Meeting`, `/api/meetings`).
 - Errors are returned with proper HTTP status codes; API keys come only from
