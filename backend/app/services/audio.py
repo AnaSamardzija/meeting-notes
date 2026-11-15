@@ -114,3 +114,37 @@ def extract_audio(video_path: Path, audio_path: Path) -> None:
         # ffmpeg may leave a partial file behind
         audio_path.unlink(missing_ok=True)
         raise AudioExtractionError("Could not extract audio from the video")
+
+
+def get_audio_duration(audio_path: Path) -> float | None:
+    """Return the length of the audio file in seconds, or None if it is not known.
+
+    The length is only written to the log (see app/services/ai.py), so this
+    never raises: a failure must not stop the processing of the meeting.
+    """
+    try:
+        # Print only the duration of the whole file, as a bare number
+        probe = _run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "csv=p=0",
+                str(audio_path),
+            ],
+            PROBE_TIMEOUT_SECONDS,
+        )
+    except AudioExtractionError as error:
+        logger.warning("Could not read the length of %s: %s", audio_path, error)
+        return None
+    if probe.returncode != 0:
+        logger.warning(
+            "ffprobe failed for %s: %s", audio_path, probe.stderr.strip()
+        )
+        return None
+    # ffprobe prints "N/A" when it cannot tell the length
+    try:
+        return round(float(probe.stdout.strip()), 1)
+    except ValueError:
+        logger.warning("ffprobe returned no length for %s", audio_path)
+        return None

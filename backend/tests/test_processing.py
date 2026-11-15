@@ -53,8 +53,13 @@ def test_process_meeting_stores_the_transcript_and_the_analysis(
     video_path = tmp_path / "1" / "original.mp4"
     audio_path = tmp_path / "1" / "audio.mp3"
     ai_mocks.extract_audio.assert_called_once_with(video_path, audio_path)
-    ai_mocks.transcribe_audio.assert_called_once_with(audio_path)
-    ai_mocks.analyze_transcript.assert_called_once_with(TRANSCRIPT)
+    ai_mocks.get_audio_duration.assert_called_once_with(audio_path)
+    ai_mocks.transcribe_audio.assert_called_once_with(
+        audio_path, meeting_id=meeting.id, audio_seconds=98.5
+    )
+    ai_mocks.analyze_transcript.assert_called_once_with(
+        TRANSCRIPT, meeting_id=meeting.id
+    )
 
     # process_meeting used a session of its own, so read the meeting again
     db.refresh(meeting)
@@ -94,7 +99,7 @@ def test_process_meeting_keeps_a_title_the_user_set_during_the_processing(
     meeting = make_meeting(status=MeetingStatus.UPLOADED, title=None)
     ai_mocks.transcribe_audio.return_value = TRANSCRIPT
 
-    def user_sets_the_title_while_the_summary_is_made(transcript):
+    def user_sets_the_title_while_the_summary_is_made(transcript, meeting_id):
         # Stands for PATCH /api/meetings/{id} arriving while the AI writes the
         # summary, after process_meeting has already read the meeting
         meeting.title = "Interview with Alex"

@@ -160,7 +160,7 @@ def isolated_app(session_factory, monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def ai_mocks(monkeypatch):
-    """Replace the functions that call ffmpeg and Gemini, in every test.
+    """Replace the functions that call ffmpeg, ffprobe and Gemini, in every test.
 
     They are replaced in app.services.processing, because that is the module
     that looks them up by name when process_meeting runs. A test sets what
@@ -168,6 +168,7 @@ def ai_mocks(monkeypatch):
     """
     mocks = SimpleNamespace(
         extract_audio=Mock(),
+        get_audio_duration=Mock(return_value=98.5),
         transcribe_audio=Mock(),
         analyze_transcript=Mock(),
     )

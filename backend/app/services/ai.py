@@ -228,9 +228,49 @@ def _delete_file(client: genai.Client, file: types.File) -> None:
         logger.warning("Could not delete the Gemini file %s: %s", file.name, error)
 
 
-def transcribe_audio(audio_path: Path) -> str:
+def _log_usage(
+    step: str,
+    interaction,
+    seconds: float,
+    meeting_id: int | None,
+    audio_seconds: float | None = None,
+) -> None:
+    """Write one log line with what a Gemini call cost and how long it took.
+
+    It is written for every answer that came back, also a failed one, because
+    Google charges for it too. Only numbers go to the log, never the content
+    of the interview. The numbers are both in the text, for reading the log
+    now, and in extra, as separate fields of the log record, for a log format
+    that keeps fields (e.g. JSON in Google Cloud Logging).
+    """
+    # usage is missing when the answer has no statistics; every number is
+    # then None instead of an error
+    usage = getattr(interaction, "usage", None)
+    fields = {
+        "meeting_id": meeting_id,
+        "step": step,
+        "model": settings.gemini_model,
+        "status": getattr(interaction, "status", None),
+        "duration_seconds": round(seconds, 1),
+        "input_tokens": getattr(usage, "total_input_tokens", None),
+        "output_tokens": getattr(usage, "total_output_tokens", None),
+        "thought_tokens": getattr(usage, "total_thought_tokens", None),
+    }
+    # The length of the recording matters only for the transcription
+    if step == "transcription":
+        fields["audio_seconds"] = audio_seconds
+    text = " ".join(f"{name}={value}" for name, value in fields.items())
+    logger.info("Gemini usage: %s", text, extra=fields)
+
+
+def transcribe_audio(
+    audio_path: Path,
+    meeting_id: int | None = None,
+    audio_seconds: float | None = None,
+) -> str:
     """Return the transcript of the speech in the MP3 file at audio_path.
 
+    meeting_id and audio_seconds are only written to the log (see _log_usage).
     Raises AIServiceError if the file is missing or Gemini cannot transcribe it.
     """
     if not audio_path.is_file():
@@ -244,6 +284,9 @@ def transcribe_audio(audio_path: Path) -> str:
         audio_file = client.files.upload(file=audio_path)
         try:
             audio_file = _wait_until_active(client, audio_file)
+            # Only the call itself is timed, not the upload of the file.
+            # monotonic() is a clock that never jumps (unlike the time of day)
+            started = time.monotonic()
             # input is a list of parts sent together: the audio, which is
             # given by the address of the uploaded file, and then the task
             interaction = client.interactions.create(
@@ -260,6 +303,14 @@ def transcribe_audio(audio_path: Path) -> str:
                 # Google keeps every interaction for days by default; nothing
                 # here needs that, and a meeting is private
                 store=False,
+            )
+            # Before the status is checked, so a failed answer is logged too
+            _log_usage(
+                "transcription",
+                interaction,
+                time.monotonic() - started,
+                meeting_id,
+                audio_seconds,
             )
         finally:
             # The file is only needed for this one call, so it is removed
@@ -290,9 +341,12 @@ def transcribe_audio(audio_path: Path) -> str:
     return transcript
 
 
-def analyze_transcript(transcript: str) -> MeetingAnalysis:
+def analyze_transcript(
+    transcript: str, meeting_id: int | None = None
+) -> MeetingAnalysis:
     """Return the title, the interviewee and the insights of an interview.
 
+    meeting_id is only written to the log (see _log_usage).
     Raises AIServiceError if the transcript is empty or Gemini does not return
     an answer in the expected shape.
     """
@@ -303,6 +357,7 @@ def analyze_transcript(transcript: str) -> MeetingAnalysis:
     # is closed by Python, even in the middle of a call
     client = _client()
     try:
+        started = time.monotonic()
         interaction = client.interactions.create(
             model=settings.gemini_model,
             system_instruction=ANALYZE_INSTRUCTIONS,
@@ -323,6 +378,10 @@ def analyze_transcript(transcript: str) -> MeetingAnalysis:
     except SDK_ERRORS as error:
         raise _to_service_error(error) from None
 
+    # Before the status and the JSON are checked, so a failed answer is
+    # logged too
+    _log_usage("analysis", interaction, time.monotonic() - started, meeting_id)
+
     if interaction.status != "completed":
         logger.error("Gemini analysis ended as %s", interaction.status)
         raise AIServiceError("Gemini did not finish the analysis")
@@ -331,9 +390,19 @@ def analyze_transcript(transcript: str) -> MeetingAnalysis:
     # MeetingAnalysis object and checks it against the class at the same time
     try:
         analysis = MeetingAnalysis.model_validate_json(interaction.output_text or "")
-    except ValidationError:
+    except ValidationError as error:
+        # Only where and what is wrong (e.g. "insights.takeaway: missing"):
+        # the answer itself is the content of the interview and never goes to
+        # the log. The "input" of each error is left out for the same reason
+        problems = "; ".join(
+            f"{'.'.join(str(part) for part in problem['loc'])}: {problem['type']}"
+            for problem in error.errors()
+        )
         logger.error(
-            "Gemini returned an unexpected analysis: %s", interaction.output_text
+            "Gemini returned an analysis in an unexpected format for meeting "
+            "%s: %s",
+            meeting_id,
+            problems,
         )
         raise AIServiceError(
             "Gemini returned an answer in an unexpected format"

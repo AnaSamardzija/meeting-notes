@@ -8,7 +8,11 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import Meeting, MeetingStatus, utc_now
 from app.services.ai import AIServiceError, analyze_transcript, transcribe_audio
-from app.services.audio import AudioExtractionError, extract_audio
+from app.services.audio import (
+    AudioExtractionError,
+    extract_audio,
+    get_audio_duration,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +89,12 @@ def process_meeting(meeting_id: int) -> None:
             db.commit()
 
             extract_audio(video_path, audio_path)
-            transcript = transcribe_audio(audio_path)
+            # The id and the length of the recording are only for the log
+            # line of each Gemini call (see _log_usage in app/services/ai.py)
+            audio_seconds = get_audio_duration(audio_path)
+            transcript = transcribe_audio(
+                audio_path, meeting_id=meeting_id, audio_seconds=audio_seconds
+            )
 
             # The transcript is saved together with the new status, so it is
             # kept even if the analysis fails
@@ -93,7 +102,7 @@ def process_meeting(meeting_id: int) -> None:
             meeting.status = MeetingStatus.SUMMARIZING
             db.commit()
 
-            analysis = analyze_transcript(transcript)
+            analysis = analyze_transcript(transcript, meeting_id=meeting_id)
 
             # The AI title is used only when the meeting has no title. The
             # check is done by the database (WHERE title IS NULL), not with
