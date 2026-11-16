@@ -7,7 +7,7 @@ feedback), used mainly by one colleague. Work is split into numbered GitHub issu
 says about the app, the issue wins and this file is updated as part of the issue.
 
 ## What the app does now
-A small single-user web app (no login, no user accounts):
+A small web app with user accounts (see "Users and login" below):
 1. The user selects a video file (at least MP4) in the React UI, can give it a
    title (optional, at most 255 characters) and uploads it.
 2. The FastAPI backend converts it to an MP3 audio file (ffmpeg).
@@ -71,10 +71,26 @@ A small single-user web app (no login, no user accounts):
   of the interview goes to the log, no price is computed (the exact cost is in
   the billing of the Google Cloud project), and nothing is stored in the
   database; a table is added only if the numbers are ever needed in the app.
+- Users and login (backend only for now: the existing endpoints are not
+  protected yet and the frontend has no login). Table `users`: email (unique,
+  stored in lower case), argon2 password hash only (`argon2-cffi`), role
+  `user` or `admin`, `is_active`, `created_at`. `POST /api/auth/register`
+  (open for now; always role `user`; 409 for a taken email, 422 for a password
+  under 10 characters or, when `ALLOWED_EMAIL_DOMAIN` is set, another domain),
+  `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
+  Register and login put a JWT (`PyJWT`, HS256, `JWT_SECRET`) in the httpOnly,
+  Secure, SameSite=Strict cookie `access_token`, valid `JWT_EXPIRE_HOURS`.
+  Unknown email, wrong password and deactivated account all get the same 401.
+  `get_current_user` (reads the cookie, checks the JWT, loads the user; 401
+  also for a deactivated user) and `require_admin` (403) are in
+  `app/dependencies.py`. The admin is made only by `python -m app.create_admin`
+  from `ADMIN_EMAIL` and `ADMIN_PASSWORD`: it can run any number of times,
+  changes nothing when the admin exists, and never makes an existing regular
+  user an admin. Email confirmation and forgotten passwords are not done.
 - The UI texts talk about interviews; the names in the code and the API stay
   "meeting" (`Meeting`, `/api/meetings`).
-- Errors are returned with proper HTTP status codes; API keys come only from
-  environment variables.
+- Errors are returned with proper HTTP status codes; API keys and the JWT
+  secret come only from environment variables.
 
 ## Approach
 - AI provider: Google Gemini (Python SDK `google-genai`).

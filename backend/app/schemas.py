@@ -1,9 +1,16 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    StringConstraints,
+)
 
-from app.models import MeetingStatus
+from app.models import MeetingStatus, UserRole
 
 # The title column in app/models.py is String(255)
 TITLE_MAX_LENGTH = 255
@@ -120,3 +127,41 @@ class MeetingDetail(MeetingRead):
     # Set when the user has changed the summary, so the frontend can warn that
     # processing the meeting again replaces the changes
     edited_at: UtcDateTime | None
+
+
+# A password must have at least 10 characters. The upper limit stops a
+# request from sending megabytes of text to the (deliberately slow) password
+# hash. Spaces are kept: they are part of the password
+PASSWORD_MIN_LENGTH = 10
+PASSWORD_MAX_LENGTH = 128
+
+
+class RegisterRequest(BaseModel):
+    """The body of POST /api/auth/register. Any other field, such as "role",
+    is ignored: every new account is a regular user."""
+
+    # EmailStr: checks that this is an email address (email-validator)
+    email: EmailStr
+    password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH
+    )
+
+
+class LoginRequest(BaseModel):
+    """The body of POST /api/auth/login. No format rules: anything that is
+    not a known email and its password gets the same 401."""
+
+    email: str = Field(max_length=255)
+    password: str = Field(max_length=PASSWORD_MAX_LENGTH)
+
+
+class UserRead(BaseModel):
+    """What the API returns for a user; never the password hash."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    role: UserRole
+    is_active: bool
+    created_at: UtcDateTime

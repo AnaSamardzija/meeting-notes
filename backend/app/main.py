@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
 from app.error_handlers import register_error_handlers
-from app.routers import health, meetings
+from app.routers import auth, health, meetings
 from app.services.processing import fail_interrupted_meetings
 
 # The base configuration for every logger of the application. The loggers in
@@ -52,3 +52,4 @@ register_error_handlers(app)
 
 app.include_router(health.router, prefix="/api")
 app.include_router(meetings.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
