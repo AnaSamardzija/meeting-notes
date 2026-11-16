@@ -46,10 +46,13 @@ root_settings = RootDatabaseSettings()
 TEST_DATABASE = f"{root_settings.mysql_database}_test"
 
 # Environment variables win over .env, so the app imported below connects to
-# the test database and never sees the real Gemini key. This must run before
+# the test database and never sees the real Gemini key or JWT secret, and the
+# tests do not depend on the email domain set in .env. This must run before
 # the first "from app ..." import.
 os.environ["MYSQL_DATABASE"] = TEST_DATABASE
 os.environ["GEMINI_API_KEY"] = "test-key-not-used"
+os.environ["JWT_SECRET"] = "test-secret-only-for-the-tests-0123456789"
+os.environ["ALLOWED_EMAIL_DOMAIN"] = ""
 
 from alembic.command import downgrade, upgrade
 from alembic.config import Config

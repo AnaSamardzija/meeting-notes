@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -43,6 +44,16 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.8-flash"
     # Longest time one request to Gemini may take
     gemini_timeout_seconds: int = 600
+
+    # Login. The secret signs the JWT in the login cookie: anyone who knows it
+    # can make a token for any user. No default on purpose, and at least 32
+    # characters, because a short secret can be guessed
+    jwt_secret: str = Field(min_length=32)
+    # How long a login lasts; the cookie and the token expire together
+    jwt_expire_hours: int = Field(default=12, gt=0)
+    # When set (for example example.com), only addresses with exactly this
+    # domain can register. Empty: any address can
+    allowed_email_domain: str = ""
 
     @property
     def upload_path(self) -> Path:

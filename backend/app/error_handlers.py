@@ -4,6 +4,11 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 
+from app.services.auth import (
+    EmailDomainNotAllowedError,
+    EmailTakenError,
+    InvalidCredentialsError,
+)
 from app.services.meetings import (
     EmptyFileError,
     MeetingInProgressError,
@@ -26,6 +31,9 @@ SERVICE_ERROR_STATUS_CODES: dict[type[Exception], int] = {
     FileTooLargeError: status.HTTP_413_CONTENT_TOO_LARGE,
     UnsupportedMediaError: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
     UploadSaveError: status.HTTP_500_INTERNAL_SERVER_ERROR,
+    InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
+    EmailTakenError: status.HTTP_409_CONFLICT,
+    EmailDomainNotAllowedError: status.HTTP_422_UNPROCESSABLE_CONTENT,
 }
 
 

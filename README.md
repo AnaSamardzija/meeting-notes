@@ -1,11 +1,11 @@
 # Meeting Notes AI
 
-A small single-user web app for recordings of user interviews with players and
-coaches. You upload a video, the backend extracts the audio with ffmpeg, Google
-Gemini transcribes it and writes an interview summary in English (who was
-interviewed, the takeaway, the context, and what they like, dislike and want),
-and everything is stored in a MySQL database so the processed interviews can be
-opened again later.
+A small web app, with user accounts, for recordings of user interviews with
+players and coaches. You upload a video, the backend extracts the audio with
+ffmpeg, Google Gemini transcribes it and writes an interview summary in English
+(who was interviewed, the takeaway, the context, and what they like, dislike and
+want), and everything is stored in a MySQL database so the processed interviews
+can be opened again later.
 
 ## Project structure
 
@@ -61,8 +61,12 @@ cp frontend/.env.example frontend/.env
 
 ### Root `.env` (database and backend)
 
-Set your own passwords and your Gemini API key; the other values can stay as
-they are.
+Set your own passwords, your Gemini API key and a random `JWT_SECRET`; the
+other values can stay as they are. Generate the secret with:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
 
 | Variable                 | Default                 | Description                                               |
 |--------------------------|-------------------------|-----------------------------------------------------------|
@@ -80,6 +84,11 @@ they are.
 | `GEMINI_API_KEY`         | required                | Google Gemini API key                                     |
 | `GEMINI_MODEL`           | `gemini-3.8-flash`      | Gemini model for the transcription and the summary        |
 | `GEMINI_TIMEOUT_SECONDS` | `600`                   | Longest time one request to Gemini may take, in seconds   |
+| `JWT_SECRET`             | required                | Signs the login tokens; at least 32 random characters     |
+| `JWT_EXPIRE_HOURS`       | `12`                    | How long a login lasts, in hours                          |
+| `ALLOWED_EMAIL_DOMAIN`   | empty                   | Only this email domain can register; empty allows any     |
+| `ADMIN_EMAIL`            | -                       | Email of the first admin (see Creating the admin)         |
+| `ADMIN_PASSWORD`         | -                       | First password of the admin, at least 10 characters       |
 
 The backend does not start if a required variable is missing.
 
@@ -161,6 +170,25 @@ alembic current          # show which migration the database is on
 alembic downgrade -1     # undo the last migration
 alembic downgrade base   # undo all migrations (drops the tables and their data)
 ```
+
+### Creating the admin
+
+Registration in the app always creates a regular user; the admin is created
+with a command. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env`, then run this
+from the `backend/` folder, with the virtual environment activated and the
+migrations applied:
+
+```bash
+python -m app.create_admin
+```
+
+- It can be run any number of times: when the admin already exists, nothing is
+  changed.
+- The password from `.env` is used only when the account is created; after that
+  the admin changes it in the app.
+- If a regular user with that email already exists, the command stops with an
+  error and does not make that user an admin (anyone could have registered the
+  email). Use another email for the admin.
 
 ### Running the tests
 

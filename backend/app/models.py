@@ -1,7 +1,7 @@
 import enum
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, Enum, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Enum, String, Text
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,3 +57,33 @@ class Meeting(Base):
     # When the user last changed the summary (interviewee and insights); None
     # while the summary is the one the AI wrote
     edited_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+class UserRole(str, enum.Enum):
+    USER = "user"
+    ADMIN = "admin"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Always stored in lower case (see app/services/auth.py), so the unique
+    # index and the login do not depend on upper and lower case
+    email: Mapped[str] = mapped_column(String(255), unique=True)
+    # Only the argon2 hash; the password itself is never stored
+    password_hash: Mapped[str] = mapped_column(String(255))
+    # Stored as VARCHAR, like MeetingStatus. Registration always gives "user";
+    # an admin is made only by python -m app.create_admin
+    role: Mapped[UserRole] = mapped_column(
+        Enum(
+            UserRole,
+            native_enum=False,
+            length=20,
+            values_callable=lambda roles: [r.value for r in roles],
+        ),
+        default=UserRole.USER,
+    )
+    # A deactivated user cannot log in, and a token they already have stops
+    # working at once
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
