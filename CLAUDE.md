@@ -71,8 +71,8 @@ A small web app with user accounts (see "Users and login" below):
   of the interview goes to the log, no price is computed (the exact cost is in
   the billing of the Google Cloud project), and nothing is stored in the
   database; a table is added only if the numbers are ever needed in the app.
-- Users and login (backend only for now: the existing endpoints are not
-  protected yet and the frontend has no login). Table `users`: email (unique,
+- Users and login (backend only for now: the frontend has no login yet, so it
+  gets 401 from the interview endpoints). Table `users`: email (unique,
   stored in lower case), argon2 password hash only (`argon2-cffi`), role
   `user` or `admin`, `is_active`, `created_at`. `POST /api/auth/register`
   (open for now; always role `user`; 409 for a taken email, 422 for a password
@@ -87,6 +87,18 @@ A small web app with user accounts (see "Users and login" below):
   from `ADMIN_EMAIL` and `ADMIN_PASSWORD`: it can run any number of times,
   changes nothing when the admin exists, and never makes an existing regular
   user an admin. Email confirmation and forgotten passwords are not done.
+- Interviews belong to users. All `/api/meetings` endpoints need a login (the
+  router has `dependencies=[Depends(get_current_user)]`; 401 without a valid
+  cookie). `meetings.user_id` (foreign key to `users`) is set at upload to the
+  user who uploaded. A user sees, edits and processes again only their own
+  interviews, the admin all of them: every service function that works on
+  one interview gets it through `get_meeting(db, meeting_id, user)` in
+  `app/services/meetings.py`, which filters in the SQL query, so another
+  user's interview is a 404 exactly like one that does not exist. The
+  migration that added `user_id` gave the existing interviews to the admin
+  and stops when there are interviews but no admin yet.
+- Swagger (`/docs`, `/redoc`, `/openapi.json`) exists only when
+  `ENABLE_DOCS=true`; it is off by default and in production.
 - The UI texts talk about interviews; the names in the code and the API stay
   "meeting" (`Meeting`, `/api/meetings`).
 - Errors are returned with proper HTTP status codes; API keys and the JWT
@@ -105,7 +117,8 @@ A small web app with user accounts (see "Users and login" below):
 - frontend/ – React + Vite (JavaScript)
 
 ## Commands
-- Backend: `cd backend`, then `fastapi dev app/main.py` (http://localhost:8000/docs)
+- Backend: `cd backend`, then `fastapi dev app/main.py` (http://localhost:8000/docs
+  with `ENABLE_DOCS=true`)
 - Backend tests: `cd backend`, then `pytest` (the database must be running;
   dev tools are installed with `pip install -r requirements-dev.txt`)
 - Backend lint: `cd backend`, then `ruff check .`
@@ -121,6 +134,12 @@ A small web app with user accounts (see "Users and login" below):
   into tests, fixtures, examples, logs or documentation; use made-up data only.
 - Every change to the database models comes with an Alembic migration; never edit a
   migration that has already been applied.
+- Every new endpoint needs a login (`get_current_user`); only health, register,
+  login and logout are public (`PUBLIC_ENDPOINTS` in
+  `backend/tests/test_meeting_access.py`, whose test fails for any other
+  endpoint that answers without a login). An endpoint for an interview checks
+  ownership by getting it through `get_meeting(db, meeting_id, user)`: another
+  user's interview is a 404, never a 403.
 - Write only the tests that are needed: for security (login, permissions,
   ownership), for anything whose failure would lose data or leave an interview
   stuck, and for logic that breaks easily (such as parsing). No tests for simple

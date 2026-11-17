@@ -61,7 +61,7 @@ def test_upload_rejects_an_empty_file(client, db, tmp_path, process_meeting_mock
 
 
 def test_upload_saves_the_video_and_starts_the_processing(
-    client, db, tmp_path, process_meeting_mock
+    client, db, tmp_path, process_meeting_mock, owner
 ):
     response = upload(client, "weekly-sync.mp4", FAKE_VIDEO, "video/mp4")
 
@@ -73,6 +73,8 @@ def test_upload_saves_the_video_and_starts_the_processing(
 
     meeting_id = body["id"]
     meeting = db.get(Meeting, meeting_id)
+    # The meeting belongs to the user who uploaded it
+    assert meeting.user_id == owner.id
     assert meeting.file_path == f"{meeting_id}/original.mp4"
     # tmp_path is the upload folder of this test (see isolated_app in conftest.py)
     assert (tmp_path / str(meeting_id) / "original.mp4").read_bytes() == FAKE_VIDEO

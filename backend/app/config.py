@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # value in .env stops the app at startup with a clear error
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
+    # The API documentation (/docs, /redoc and /openapi.json) describes every
+    # endpoint to anyone who opens it, so it is off unless ENABLE_DOCS=true.
+    # Turned on only for development; off in production
+    enable_docs: bool = False
+
     # Database. The MYSQL_* values have no default on purpose: the app fails
     # at startup with a clear error if they are missing from .env
     mysql_user: str

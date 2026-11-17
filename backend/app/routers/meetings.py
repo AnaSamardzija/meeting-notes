@@ -4,6 +4,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Form, UploadFile, statu
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import get_current_user
+from app.models import User
 from app.schemas import (
     TITLE_MAX_LENGTH,
     MeetingDetail,
@@ -17,17 +19,33 @@ from app.services.processing import process_meeting
 
 # The errors the services raise are turned into HTTP responses in
 # app/error_handlers.py, so the endpoints here do not catch them.
-router = APIRouter(prefix="/meetings", tags=["meetings"])
+#
+# dependencies=: get_current_user runs before every endpoint of this router,
+# also the ones added later, so none of them can be reached without logging
+# in (401). The endpoints still ask for the user as a parameter, to pass it to
+# the services, which show each user only their own meetings. FastAPI runs a
+# dependency only once per request, so the user is loaded only once.
+router = APIRouter(
+    prefix="/meetings",
+    tags=["meetings"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get("", response_model=list[MeetingListItem])
-def list_meetings(db: Session = Depends(get_db)):
-    return meetings_service.list_meetings(db)
+def list_meetings(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    return meetings_service.list_meetings(db, user)
 
 
 @router.get("/{meeting_id}", response_model=MeetingDetail)
-def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
-    return meetings_service.get_meeting(db, meeting_id)
+def get_meeting(
+    meeting_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return meetings_service.get_meeting(db, meeting_id, user)
 
 
 # PATCH: changes only the fields that are sent (for now only the title), and
@@ -36,15 +54,20 @@ def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
 def update_meeting(
     meeting_id: int,
     data: MeetingUpdate,
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return meetings_service.update_title(db, meeting_id, data.title)
+    return meetings_service.update_title(db, meeting_id, user, data.title)
 
 
 # The summary in the shape of the edit form; 409 until processing is done
 @router.get("/{meeting_id}/summary", response_model=SummaryForm)
-def get_summary(meeting_id: int, db: Session = Depends(get_db)):
-    return summary_service.get_summary_form(db, meeting_id)
+def get_summary(
+    meeting_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return summary_service.get_summary_form(db, meeting_id, user)
 
 
 # PUT: the whole summary is sent and replaces the old one. Returns the whole
@@ -53,9 +76,10 @@ def get_summary(meeting_id: int, db: Session = Depends(get_db)):
 def update_summary(
     meeting_id: int,
     data: SummaryForm,
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return summary_service.update_summary(db, meeting_id, data)
+    return summary_service.update_summary(db, meeting_id, user, data)
 
 
 @router.post("", response_model=MeetingRead, status_code=status.HTTP_202_ACCEPTED)
@@ -65,6 +89,7 @@ def upload_meeting(
     # Form: a field of the same multipart form as the file. Optional: when it
     # is left empty, the AI writes the title
     title: Annotated[str, Form(max_length=TITLE_MAX_LENGTH)] = "",
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     meeting = meetings_service.create_meeting(
@@ -73,6 +98,8 @@ def upload_meeting(
         filename=file.filename,
         content_type=file.content_type,
         size=file.size,
+        # The meeting belongs to the user who uploaded it
+        user_id=user.id,
         title=title,
     )
     # Runs after the response has been sent, so the upload does not wait for
@@ -90,8 +117,9 @@ def upload_meeting(
 def process_meeting_again(
     meeting_id: int,
     background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    meeting = meetings_service.start_reprocessing(db, meeting_id)
+    meeting = meetings_service.start_reprocessing(db, meeting_id, user)
     background_tasks.add_task(process_meeting, meeting.id)
     return meeting

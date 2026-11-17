@@ -10,6 +10,8 @@ names as arguments.
   nothing a test writes is left behind for the next one.
 - Gemini and ffmpeg are never called: the functions that call them are
   replaced with mocks.
+- client is logged in as owner, who also owns the meetings of make_meeting;
+  anonymous_client is not logged in.
 """
 
 import os
@@ -60,10 +62,12 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.database import engine, get_db
+from app.dependencies import ACCESS_TOKEN_COOKIE
 from app.main import app
-from app.models import Meeting, MeetingStatus
+from app.models import Meeting, MeetingStatus, User, UserRole
 from app.routers import meetings as meetings_router
 from app.services import ai, processing
+from app.services.auth import create_access_token, hash_password
 
 
 def _create_test_database() -> None:
@@ -203,21 +207,77 @@ def process_meeting_mock(monkeypatch):
 
 
 @pytest.fixture
-def client(process_meeting_mock):
-    """Sends requests to the app without starting a server.
+def make_user(db):
+    """Return a function that stores a user with made-up account data."""
 
-    Created without "with", so the startup code (lifespan) does not run.
-    """
-    return TestClient(app)
+    def _make_user(
+        email: str = "alex@example.com",
+        password: str = "correct-horse-battery",
+        role: UserRole = UserRole.USER,
+        is_active: bool = True,
+    ) -> User:
+        user = User(
+            email=email,
+            password_hash=hash_password(password),
+            role=role,
+            is_active=is_active,
+        )
+        db.add(user)
+        db.commit()
+        return user
+
+    return _make_user
 
 
 @pytest.fixture
-def make_meeting(db):
-    """Return a function that stores a meeting with made-up data."""
+def owner(make_user):
+    """The regular user the client is logged in as and who owns the meetings
+    of make_meeting, unless a test says otherwise."""
+    return make_user(email="owner@example.com")
+
+
+@pytest.fixture
+def client_for(process_meeting_mock):
+    """Return a function that makes a client logged in as the given user, or
+    not logged in at all (None).
+
+    The client sends requests to the app without starting a server. It is
+    created without "with", so the startup code (lifespan) does not run.
+    """
+
+    def _client_for(user: User | None) -> TestClient:
+        # https: the real login cookie is Secure, as in test_auth.py
+        client = TestClient(app, base_url="https://testserver")
+        if user is not None:
+            # A real token in the real cookie, so get_current_user checks it
+            # exactly as it checks the one the login sets
+            client.cookies.set(ACCESS_TOKEN_COOKIE, create_access_token(user.id))
+        return client
+
+    return _client_for
+
+
+@pytest.fixture
+def client(client_for, owner):
+    """A client logged in as owner."""
+    return client_for(owner)
+
+
+@pytest.fixture
+def anonymous_client(client_for):
+    """A client that is not logged in."""
+    return client_for(None)
+
+
+@pytest.fixture
+def make_meeting(db, owner):
+    """Return a function that stores a meeting with made-up data, owned by
+    owner unless user_id is given."""
 
     def _make_meeting(
         status: MeetingStatus = MeetingStatus.DONE, **fields
     ) -> Meeting:
+        fields.setdefault("user_id", owner.id)
         fields.setdefault("original_filename", "weekly-sync.mp4")
         fields.setdefault("file_path", "1/original.mp4")
         meeting = Meeting(status=status, **fields)

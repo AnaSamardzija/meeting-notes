@@ -78,6 +78,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 | `DB_PORT`                | `3306`                  | Port of the database on your machine                      |
 | `CORS_ORIGINS`           | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
 | `LOG_LEVEL`              | `INFO`                  | Lowest level of the log messages the backend prints       |
+| `ENABLE_DOCS`            | `false`                 | Swagger at `/docs` when `true`; keep off in production    |
 | `UPLOAD_DIR`             | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
 | `MAX_UPLOAD_MB`          | `500`                   | Largest video that can be uploaded, in megabytes          |
 | `FFMPEG_TIMEOUT_SECONDS` | `600`                   | Longest time ffmpeg may take on one video, in seconds     |
@@ -154,7 +155,10 @@ alembic upgrade head
 fastapi dev app/main.py
 ```
 
-- Swagger documentation: http://localhost:8000/docs
+- Swagger documentation: http://localhost:8000/docs (only with
+  `ENABLE_DOCS=true` in `.env`). The interview endpoints need a login: call
+  `POST /api/auth/login` in Swagger first, and the browser keeps the login
+  cookie for the other requests.
 - Health check: http://localhost:8000/api/health (returns `503` if the database
   is not available)
 
@@ -189,6 +193,11 @@ python -m app.create_admin
 - If a regular user with that email already exists, the command stops with an
   error and does not make that user an admin (anyone could have registered the
   email). Use another email for the admin.
+- Every interview belongs to the user who uploaded it. When a database that
+  already has interviews from before user accounts is upgraded, the migration
+  gives them to the admin, so the admin must exist first: if
+  `alembic upgrade head` stops with "there is no admin yet", run
+  `python -m app.create_admin` and then `alembic upgrade head` again.
 
 ### Running the tests
 
