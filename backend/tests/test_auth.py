@@ -15,38 +15,20 @@ from app.config import settings
 from app.dependencies import ACCESS_TOKEN_COOKIE, require_admin
 from app.main import app
 from app.models import User, UserRole
-from app.services.auth import NotAnAdminError, create_admin, hash_password
+from app.services.auth import NotAnAdminError, create_admin
 
-# Made-up account data
+# Made-up account data: the email and the password make_user (conftest.py)
+# gives a user when the test does not choose them
 EMAIL = "alex@example.com"
 PASSWORD = "correct-horse-battery"
 
 
 @pytest.fixture
 def client():
-    """Replaces the client of conftest.py in this file. https: the login
-    cookie is Secure, and httpx sends a Secure cookie back only over https."""
+    """Replaces the client of conftest.py in this file: these tests log in
+    themselves. https: the login cookie is Secure, and httpx sends a Secure
+    cookie back only over https."""
     return TestClient(app, base_url="https://testserver")
-
-
-@pytest.fixture
-def make_user(db):
-    """Return a function that stores a user whose password is PASSWORD."""
-
-    def _make_user(
-        email: str = EMAIL, role: UserRole = UserRole.USER, is_active: bool = True
-    ) -> User:
-        user = User(
-            email=email,
-            password_hash=hash_password(PASSWORD),
-            role=role,
-            is_active=is_active,
-        )
-        db.add(user)
-        db.commit()
-        return user
-
-    return _make_user
 
 
 def register(client, email=EMAIL, password=PASSWORD, **extra_fields):

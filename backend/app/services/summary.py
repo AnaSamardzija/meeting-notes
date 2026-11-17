@@ -2,9 +2,9 @@ import re
 
 from sqlalchemy.orm import Session
 
-from app.models import Meeting, MeetingStatus, utc_now
+from app.models import Meeting, MeetingStatus, User, utc_now
 from app.schemas import InsightItem, Insights, Interviewee, SummaryForm
-from app.services.meetings import MeetingNotFoundError, get_meeting
+from app.services.meetings import get_meeting
 
 
 class SummaryNotEditableError(Exception):
@@ -63,13 +63,13 @@ def text_to_items(text: str) -> list[InsightItem]:
 NOT_EDITABLE_MESSAGE = "The summary can be changed only when processing is done"
 
 
-def get_summary_form(db: Session, meeting_id: int) -> SummaryForm:
+def get_summary_form(db: Session, meeting_id: int, user: User) -> SummaryForm:
     """Return the summary of the meeting in the shape of the form.
 
     Raises MeetingNotFoundError, or SummaryNotEditableError if the processing
     is not done.
     """
-    meeting = get_meeting(db, meeting_id)
+    meeting = get_meeting(db, meeting_id, user)
     if meeting.status != MeetingStatus.DONE:
         raise SummaryNotEditableError(NOT_EDITABLE_MESSAGE)
 
@@ -89,7 +89,9 @@ def get_summary_form(db: Session, meeting_id: int) -> SummaryForm:
     )
 
 
-def update_summary(db: Session, meeting_id: int, form: SummaryForm) -> Meeting:
+def update_summary(
+    db: Session, meeting_id: int, user: User, form: SummaryForm
+) -> Meeting:
     """Replace the summary of the meeting with the edited one and return the
     meeting.
 
@@ -99,9 +101,7 @@ def update_summary(db: Session, meeting_id: int, form: SummaryForm) -> Meeting:
     # Locked until the commit, as in start_reprocessing: the processing cannot
     # start between the check of the status and the save, so it never ends up
     # writing its summary over this one or the other way round
-    meeting = db.get(Meeting, meeting_id, with_for_update=True)
-    if meeting is None:
-        raise MeetingNotFoundError("Meeting not found")
+    meeting = get_meeting(db, meeting_id, user, for_update=True)
     if meeting.status != MeetingStatus.DONE:
         raise SummaryNotEditableError(NOT_EDITABLE_MESSAGE)
 

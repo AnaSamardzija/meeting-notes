@@ -4,12 +4,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import BinaryIO
 
-from sqlalchemy import Row, select
+from sqlalchemy import Row, Select, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Meeting, MeetingStatus
+from app.models import Meeting, MeetingStatus, User, UserRole
 from app.services.processing import IN_PROGRESS_STATUSES, reset_results
 from app.storage import ALLOWED_EXTENSIONS, FileTooLargeError, save_upload
 
@@ -41,8 +41,22 @@ class MeetingInProgressError(Exception):
     """The meeting is being processed, so it cannot be started again."""
 
 
-def list_meetings(db: Session) -> Sequence[Row]:
-    """Return the rows of the meetings list, the newest first."""
+def _visible_to(query: Select, user: User) -> Select:
+    """Limit the query to the meetings the user may see: all of them for the
+    admin, only their own for everyone else.
+
+    The check is part of the SQL query, so the meeting of another user is
+    simply not found, exactly like a meeting that does not exist: the user
+    cannot tell that it is there.
+    """
+    if user.role == UserRole.ADMIN:
+        return query
+    return query.where(Meeting.user_id == user.id)
+
+
+def list_meetings(db: Session, user: User) -> Sequence[Row]:
+    """Return the rows of the meetings list the user may see, the newest
+    first."""
     # Only the columns the list shows: the transcript and the insights are not
     # read at all
     query = select(
@@ -57,24 +71,38 @@ def list_meetings(db: Session) -> Sequence[Row]:
         Meeting.uploaded_at.desc(),
         Meeting.id.desc(),
     )
-    return db.execute(query).all()
+    return db.execute(_visible_to(query, user)).all()
 
 
-def get_meeting(db: Session, meeting_id: int) -> Meeting:
-    """Return the meeting, or raise MeetingNotFoundError."""
-    meeting = db.get(Meeting, meeting_id)
+def get_meeting(
+    db: Session, meeting_id: int, user: User, *, for_update: bool = False
+) -> Meeting:
+    """Return the meeting if the user may see it, or raise
+    MeetingNotFoundError.
+
+    Every function that works on one meeting gets it through here, so the
+    ownership is checked in one place. for_update=True locks the row until
+    the commit (SELECT ... FOR UPDATE).
+    """
+    query = _visible_to(select(Meeting).where(Meeting.id == meeting_id), user)
+    if for_update:
+        # populate_existing: if the meeting is already in the session, its
+        # values are read again from the locked row, so the caller never
+        # checks an old status
+        query = query.with_for_update().execution_options(populate_existing=True)
+    meeting = db.scalar(query)
     if meeting is None:
         raise MeetingNotFoundError("Meeting not found")
     return meeting
 
 
-def update_title(db: Session, meeting_id: int, title: str) -> Meeting:
+def update_title(db: Session, meeting_id: int, user: User, title: str) -> Meeting:
     """Set the title of the meeting and return the meeting.
 
     The title has been checked by the schema already. Raises
     MeetingNotFoundError.
     """
-    meeting = get_meeting(db, meeting_id)
+    meeting = get_meeting(db, meeting_id, user)
     meeting.title = title
     db.commit()
     return meeting
@@ -94,9 +122,11 @@ def create_meeting(
     filename: str | None,
     content_type: str | None,
     size: int | None,
+    user_id: int,
     title: str | None = None,
 ) -> Meeting:
-    """Check the uploaded video, save it to disk and create its meeting.
+    """Check the uploaded video, save it to disk and create its meeting,
+    owned by the user with user_id.
 
     The arguments are plain values, not the UploadFile of FastAPI, so the
     service does not depend on the web framework. The caller starts the
@@ -133,6 +163,7 @@ def create_meeting(
         # flush sends the INSERT inside the open transaction, so the row is not
         # permanent (or visible to anyone else) until commit.
         meeting = Meeting(
+            user_id=user_id,
             original_filename=original_filename,
             file_path="",
             title=(title or "").strip() or None,
@@ -169,18 +200,16 @@ def create_meeting(
     return meeting
 
 
-def start_reprocessing(db: Session, meeting_id: int) -> Meeting:
+def start_reprocessing(db: Session, meeting_id: int, user: User) -> Meeting:
     """Clear the old results of the meeting and mark it as being processed.
 
     The caller starts the processing itself. Raises MeetingNotFoundError, or
     MeetingInProgressError if the meeting is already being processed.
     """
-    # with_for_update: SELECT ... FOR UPDATE locks the row until the commit
-    # below. A second request for the same meeting waits here and then reads
-    # the new status, so two requests can never both start the processing.
-    meeting = db.get(Meeting, meeting_id, with_for_update=True)
-    if meeting is None:
-        raise MeetingNotFoundError("Meeting not found")
+    # for_update: SELECT ... FOR UPDATE locks the row until the commit below.
+    # A second request for the same meeting waits here and then reads the new
+    # status, so two requests can never both start the processing.
+    meeting = get_meeting(db, meeting_id, user, for_update=True)
     if meeting.status in IN_PROGRESS_STATUSES:
         raise MeetingInProgressError("The meeting is already being processed")
 

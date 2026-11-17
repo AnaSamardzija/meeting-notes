@@ -1,7 +1,7 @@
 import enum
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +24,9 @@ class Meeting(Base):
     __tablename__ = "meetings"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # The user who uploaded the meeting. Only they and the admin can see it
+    # (see get_meeting in app/services/meetings.py)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     original_filename: Mapped[str] = mapped_column(String(255))
     # Set by the user, or written by the AI after processing when the user
     # did not set one
