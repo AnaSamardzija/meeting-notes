@@ -8,9 +8,48 @@ export const API_URL = import.meta.env.VITE_API_URL
 // backend/app/schemas.py)
 export const TITLE_MAX_LENGTH = 255
 
+// The length of a password the registration accepts (PASSWORD_MIN_LENGTH and
+// PASSWORD_MAX_LENGTH in backend/app/schemas.py)
+export const PASSWORD_MIN_LENGTH = 10
+export const PASSWORD_MAX_LENGTH = 128
+
+// withCredentials: the browser sends the login cookie (and accepts the one the
+// login sets) although the backend runs on another origin. The page cannot
+// read the cookie itself: it is httpOnly.
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
 })
+
+// The answer of a failed login is 401 too, but there it means a wrong email or
+// password, which the login page shows as a message
+const LOGIN_URL = '/api/auth/login'
+
+// The function called when the backend answers 401 (not logged in, or the
+// login has expired). AuthProvider sets it; it forgets the user, which sends
+// the user to /login.
+let onUnauthorized = null
+
+export function setUnauthorizedHandler(handler) {
+  onUnauthorized = handler
+}
+
+// An interceptor runs for every answer before the code that sent the request
+// gets it. The first function gets the successful answers, the second the
+// errors. The error is still passed on, so the caller stops as before.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      error.response?.status === 401 &&
+      error.config?.url !== LOGIN_URL &&
+      onUnauthorized
+    ) {
+      onUnauthorized()
+    }
+    return Promise.reject(error)
+  },
+)
 
 // Turns an error of a request into a message for the user.
 // fallback: what could not be done, e.g. 'Could not load the interviews'. It is
@@ -32,6 +71,32 @@ export function getErrorMessage(error, fallback) {
 
 export async function getHealth() {
   const response = await api.get('/api/health')
+  return response.data
+}
+
+// Logs in; the backend puts the login cookie into the browser. Returns the user.
+export async function login(email, password) {
+  const response = await api.post(LOGIN_URL, { email, password })
+  return response.data
+}
+
+// Creates a regular account and logs it in at once (the backend sets the
+// cookie, as for the login). Returns the new user.
+export async function register(email, password) {
+  const response = await api.post('/api/auth/register', { email, password })
+  return response.data
+}
+
+// Asks the backend to delete the login cookie; JavaScript cannot delete an
+// httpOnly cookie itself.
+export async function logout() {
+  await api.post('/api/auth/logout')
+}
+
+// Returns the logged-in user ({ id, email, role, ... }). Fails with 401 when
+// nobody is logged in.
+export async function getMe() {
+  const response = await api.get('/api/auth/me')
   return response.data
 }
 

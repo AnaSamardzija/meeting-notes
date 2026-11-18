@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { getErrorMessage, getMeetings } from '../api'
 import { isInProgress, REFRESH_INTERVAL_MS } from '../meetingStatus'
 import ErrorAlert from './ErrorAlert'
@@ -23,8 +24,7 @@ function IntervieweeCell({ interviewee }) {
 }
 
 // reloadKey: the list is loaded again every time this number changes.
-// onView: called with the id of the meeting whose View button was clicked.
-function MeetingList({ reloadKey, onView }) {
+function MeetingList({ reloadKey }) {
   // null until the first answer arrives
   const [meetings, setMeetings] = useState(null)
   const [error, setError] = useState(null)
@@ -140,13 +140,14 @@ function MeetingList({ reloadKey, onView }) {
                 <StatusBadge status={meeting.status} />
               </td>
               <td className="text-end">
-                <button
-                  type="button"
+                {/* A real link that looks like a button: it can be opened in
+                    a new tab and its address can be copied */}
+                <Link
+                  to={`/meetings/${meeting.id}`}
                   className="btn btn-outline-primary btn-sm"
-                  onClick={() => onView(meeting.id)}
                 >
                   View
-                </button>
+                </Link>
               </td>
             </tr>
           ))}

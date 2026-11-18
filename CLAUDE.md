@@ -71,8 +71,7 @@ A small web app with user accounts (see "Users and login" below):
   of the interview goes to the log, no price is computed (the exact cost is in
   the billing of the Google Cloud project), and nothing is stored in the
   database; a table is added only if the numbers are ever needed in the app.
-- Users and login (backend only for now: the frontend has no login yet, so it
-  gets 401 from the interview endpoints). Table `users`: email (unique,
+- Users and login. Table `users`: email (unique,
   stored in lower case), argon2 password hash only (`argon2-cffi`), role
   `user` or `admin`, `is_active`, `created_at`. `POST /api/auth/register`
   (open for now; always role `user`; 409 for a taken email, 422 for a password
@@ -87,6 +86,25 @@ A small web app with user accounts (see "Users and login" below):
   from `ADMIN_EMAIL` and `ADMIN_PASSWORD`: it can run any number of times,
   changes nothing when the admin exists, and never makes an existing regular
   user an admin. Email confirmation and forgotten passwords are not done.
+- Frontend pages (`react-router`, declarative mode; `frontend/src/App.jsx`,
+  page components in `frontend/src/pages/`): `/login`, `/register`, `/` (the
+  interviews list) and `/meetings/:id` (the details), so a refresh and a link
+  to an interview work; any other address goes to `/`. `RequireAuth` sends a
+  user who is not logged in to `/login`, `GuestOnly` sends a logged-in user
+  from `/login` and `/register` to `/` (also right after a login). The login
+  page has email, password, an error message and a link to registration; the
+  register page has email, password, password confirmation (compared only in
+  the frontend), an error message and a link to the login, and logs the user
+  in at once. `AuthProvider` (`authContext.js`, `useAuth()`) holds the user:
+  it asks `GET /api/auth/me` at startup and after every login and
+  registration (a 401 there means the browser did not keep the cookie:
+  `LoginCookieError`). The navigation shows the user's email and "Logout".
+  axios sends the cookie with every request (`withCredentials`), and its
+  interceptor in `api.js` turns any 401 (except a failed login) into a logout
+  in the UI, which leads to `/login`.
+- CORS allows credentials (`allow_credentials=True`) only for the exact
+  addresses in `CORS_ORIGINS`; `config.py` refuses `*` and empty entries, so
+  the backend does not start with them.
 - Interviews belong to users. All `/api/meetings` endpoints need a login (the
   router has `dependencies=[Depends(get_current_user)]`; 401 without a valid
   cookie). `meetings.user_id` (foreign key to `users`) is set at upload to the
@@ -114,7 +132,8 @@ A small web app with user accounts (see "Users and login" below):
 ## Project structure
 - backend/ – FastAPI app, Python virtual environment in backend/.venv
 - backend/tests/ – pytest tests; shared fixtures in backend/tests/conftest.py
-- frontend/ – React + Vite (JavaScript)
+- frontend/ – React + Vite (JavaScript); pages in frontend/src/pages/, other
+  components in frontend/src/components/
 
 ## Commands
 - Backend: `cd backend`, then `fastapi dev app/main.py` (http://localhost:8000/docs
