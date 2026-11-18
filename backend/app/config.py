@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -59,6 +59,28 @@ class Settings(BaseSettings):
     # When set (for example example.com), only addresses with exactly this
     # domain can register. Empty: any address can
     allowed_email_domain: str = ""
+
+    # The browser sends the login cookie to the API, so CORS allows credentials
+    # (app/main.py). With credentials, "*" would let every website send
+    # requests with the cookie, so only exact addresses are accepted. An empty
+    # entry (a comma at the end) is refused too, so a typo is not ignored.
+    @field_validator("cors_origins")
+    @classmethod
+    def _check_cors_origins(cls, value: str) -> str:
+        for origin in value.split(","):
+            origin = origin.strip()
+            if not origin:
+                raise ValueError("CORS_ORIGINS has an empty entry")
+            if origin == "*":
+                raise ValueError(
+                    "CORS_ORIGINS cannot be '*': list the exact addresses of "
+                    "the frontend, separated by commas"
+                )
+        return value
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",")]
 
     @property
     def upload_path(self) -> Path:
