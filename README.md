@@ -76,7 +76,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 | `MYSQL_ROOT_PASSWORD`    | required                | Password of the MySQL root user (Docker and the tests)    |
 | `DB_HOST`                | `localhost`             | Host of the database                                      |
 | `DB_PORT`                | `3306`                  | Port of the database on your machine                      |
-| `CORS_ORIGINS`           | `http://localhost:5173` | Origins that are allowed to call the API, comma-separated |
+| `CORS_ORIGINS`           | `http://localhost:5173` | Exact frontend addresses, comma-separated; `*` refused    |
 | `LOG_LEVEL`              | `INFO`                  | Lowest level of the log messages the backend prints       |
 | `ENABLE_DOCS`            | `false`                 | Swagger at `/docs` when `true`; keep off in production    |
 | `UPLOAD_DIR`             | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
@@ -230,18 +230,25 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173.
+Open http://localhost:5173 (not `127.0.0.1`): the login cookie is sent only
+when the page and the backend are on the same site, so use `localhost` for
+both, as in `CORS_ORIGINS` and `VITE_API_URL`.
 
 ## Using the app
 
-1. Click **Upload interview**, choose a video (`.mp4`, `.mov`, `.webm` or
+1. Click **Create an account** on the login page, enter your email and a
+   password of at least 10 characters, and you are logged in. Next time, log
+   in with the same email and password. **Logout** is in the navigation bar.
+2. Click **Upload interview**, choose a video (`.mp4`, `.mov`, `.webm` or
    `.mkv`) and click **Upload**.
-2. The interview appears on the list. Its status changes by itself while it is
+3. The interview appears on the list. Its status changes by itself while it is
    processed: Uploaded, Transcribing, Summarizing, Done (or Failed). Once it is
    done, the list shows who was interviewed.
-3. Click **View** to see the key insights (Takeaway, Context, What they like,
+4. Click **View** to see the key insights (Takeaway, Context, What they like,
    What they dislike, What they want) and the transcript, which stays in the
-   language of the interview. A failed interview shows the reason and a
+   language of the interview. Every interview has its own address
+   (`/meetings/<id>`), which can be refreshed or shared with another logged-in
+   user who may see it. A failed interview shows the reason and a
    **Try again** button.
 
 Interviews processed before the summary format changed are shown as failed,
