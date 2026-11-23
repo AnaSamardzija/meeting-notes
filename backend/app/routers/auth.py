@@ -5,7 +5,12 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies import ACCESS_TOKEN_COOKIE, get_current_user
 from app.models import User
-from app.schemas import LoginRequest, RegisterRequest, UserRead
+from app.schemas import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    UserRead,
+)
 from app.services import auth as auth_service
 
 # The errors of the service (401, 409, 422) are turned into HTTP responses in
@@ -26,7 +31,7 @@ COOKIE_OPTIONS = {"path": "/", "secure": True, "httponly": True, "samesite": "st
 def _set_login_cookie(response: Response, user: User) -> None:
     response.set_cookie(
         ACCESS_TOKEN_COOKIE,
-        auth_service.create_access_token(user.id),
+        auth_service.create_access_token(user),
         # The cookie expires together with the token in it
         max_age=settings.jwt_expire_hours * 3600,
         **COOKIE_OPTIONS,
@@ -63,3 +68,16 @@ def logout():
 @router.get("/me", response_model=UserRead)
 def me(user: User = Depends(get_current_user)):
     return user
+
+
+# The password change ends every other login (see change_password); this
+# browser gets a new cookie with the new token version and stays logged in
+@router.post("/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    data: ChangePasswordRequest,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    auth_service.change_password(db, user, data.current_password, data.new_password)
+    _set_login_cookie(response, user)

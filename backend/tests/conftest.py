@@ -251,7 +251,7 @@ def client_for(process_meeting_mock):
         if user is not None:
             # A real token in the real cookie, so get_current_user checks it
             # exactly as it checks the one the login sets
-            client.cookies.set(ACCESS_TOKEN_COOKIE, create_access_token(user.id))
+            client.cookies.set(ACCESS_TOKEN_COOKIE, create_access_token(user))
         return client
 
     return _client_for

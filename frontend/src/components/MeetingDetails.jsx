@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { getErrorMessage, getMeeting, reprocessMeeting } from '../api'
 import ConfirmDialog from './ConfirmDialog'
 import ErrorAlert from './ErrorAlert'
@@ -16,8 +17,7 @@ const PROGRESS_STEPS = {
 }
 
 // meetingId: the id of the meeting to show.
-// onBack: called when the user clicks the Back button.
-function MeetingDetails({ meetingId, onBack }) {
+function MeetingDetails({ meetingId }) {
   // null until the first answer arrives
   const [meeting, setMeeting] = useState(null)
   const [error, setError] = useState(null)
@@ -162,13 +162,9 @@ function MeetingDetails({ meetingId, onBack }) {
               {reprocessing ? 'Starting...' : 'Process again'}
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn-outline-secondary"
-            onClick={onBack}
-          >
+          <Link to="/" className="btn btn-outline-secondary">
             Back
-          </button>
+          </Link>
         </div>
       </div>
 

@@ -49,9 +49,14 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.enable_docs else None,
 )
 
+# allow_credentials: the frontend runs on another origin (another port in
+# development) and sends the login cookie with every request. Without it, the
+# browser would not give the answer to the frontend. The cookie is accepted
+# only from the exact addresses in CORS_ORIGINS ("*" is refused in config.py)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.cors_origins.split(",")],
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
