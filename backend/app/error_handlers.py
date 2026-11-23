@@ -18,6 +18,7 @@ from app.services.meetings import (
     UploadSaveError,
 )
 from app.services.summary import SummaryNotEditableError
+from app.services.users import OwnAccountError, UserNotFoundError
 from app.storage import FileTooLargeError
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,8 @@ SERVICE_ERROR_STATUS_CODES: dict[type[Exception], int] = {
     # Not 401: the user is logged in, only the password in the form is wrong,
     # and the frontend treats any 401 as a lost login
     WrongPasswordError: status.HTTP_400_BAD_REQUEST,
+    UserNotFoundError: status.HTTP_404_NOT_FOUND,
+    OwnAccountError: status.HTTP_400_BAD_REQUEST,
 }
 
 

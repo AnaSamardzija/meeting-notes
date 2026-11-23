@@ -49,6 +49,11 @@ function Layout() {
               {logoutError && (
                 <span className="small text-white">Could not log out</span>
               )}
+              {user.role === 'admin' && (
+                <Link className="nav-link text-white" to="/admin/users">
+                  Users
+                </Link>
+              )}
               <Link className="nav-link text-white" to="/profile">
                 {user.email}
               </Link>

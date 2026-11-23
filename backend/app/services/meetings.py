@@ -59,17 +59,26 @@ def list_meetings(db: Session, user: User) -> Sequence[Row]:
     first."""
     # Only the columns the list shows: the transcript and the insights are not
     # read at all
-    query = select(
-        Meeting.id,
-        Meeting.original_filename,
-        Meeting.title,
-        Meeting.status,
-        Meeting.uploaded_at,
-        Meeting.interviewee,
-    ).order_by(
-        # uploaded_at has a precision of one second, so id breaks the tie
-        Meeting.uploaded_at.desc(),
-        Meeting.id.desc(),
+    query = (
+        select(
+            Meeting.id,
+            Meeting.original_filename,
+            Meeting.title,
+            Meeting.status,
+            Meeting.uploaded_at,
+            Meeting.interviewee,
+            # The email of the user who uploaded the meeting; the frontend
+            # shows it only to the admin, who sees the meetings of everyone
+            User.email.label("owner_email"),
+        )
+        # Every meeting has an owner (user_id cannot be NULL), so an inner
+        # join never leaves a meeting out
+        .join(User, Meeting.user_id == User.id)
+        .order_by(
+            # uploaded_at has a precision of one second, so id breaks the tie
+            Meeting.uploaded_at.desc(),
+            Meeting.id.desc(),
+        )
     )
     return db.execute(_visible_to(query, user)).all()
 

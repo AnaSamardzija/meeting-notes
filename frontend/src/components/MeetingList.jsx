@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { getErrorMessage, getMeetings } from '../api'
+import { useAuth } from '../authContext'
 import { isInProgress, REFRESH_INTERVAL_MS } from '../meetingStatus'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
@@ -25,6 +26,11 @@ function IntervieweeCell({ interviewee }) {
 
 // reloadKey: the list is loaded again every time this number changes.
 function MeetingList({ reloadKey }) {
+  const { user } = useAuth()
+  // The admin sees the interviews of every user, so the list also shows who
+  // uploaded each one. A regular user sees only their own, so the column
+  // would always show their own email.
+  const showOwner = user.role === 'admin'
   // null until the first answer arrives
   const [meetings, setMeetings] = useState(null)
   const [error, setError] = useState(null)
@@ -119,6 +125,7 @@ function MeetingList({ reloadKey }) {
             <th>Interview</th>
             <th>Interviewee</th>
             <th>Uploaded</th>
+            {showOwner && <th>Owner</th>}
             <th>Status</th>
             <th></th>
           </tr>
@@ -136,6 +143,7 @@ function MeetingList({ reloadKey }) {
               <td className="text-nowrap">
                 {new Date(meeting.uploaded_at).toLocaleString()}
               </td>
+              {showOwner && <td>{meeting.owner_email}</td>}
               <td>
                 <StatusBadge status={meeting.status} />
               </td>

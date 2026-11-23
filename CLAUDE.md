@@ -94,14 +94,31 @@ A small web app with user accounts (see "Users and login" below):
   `app/dependencies.py`. The admin is made only by `python -m app.create_admin`
   from `ADMIN_EMAIL` and `ADMIN_PASSWORD`: it can run any number of times,
   changes nothing when the admin exists, and never makes an existing regular
-  user an admin. Email confirmation and forgotten passwords are not done.
+  user an admin. Email confirmation and a "forgot password" flow are not
+  done; the admin sets a new password instead (see below).
+- User management, admin only (`app/routers/admin.py`, router with
+  `dependencies=[Depends(require_admin)]`, so 401 without a login and 403 for
+  everyone else; logic in `app/services/users.py`):
+  `GET /api/admin/users` (every user, deactivated ones too, by email),
+  `PATCH /api/admin/users/{id}` with `{"is_active": bool}` (returns the user)
+  and `POST /api/admin/users/{id}/password` with `{"new_password"}` (same
+  rules as at registration; 204). Unknown user 404. The admin cannot
+  deactivate themselves or set their own password this way (400; their own
+  password is changed on `/profile`). Users are never deleted, only
+  deactivated, and their interviews stay. Deactivating and setting a password
+  both increase `token_version`, so every older cookie of the user stops
+  working, also after the account is activated again.
 - Frontend pages (`react-router`, declarative mode; `frontend/src/App.jsx`,
   page components in `frontend/src/pages/`): `/login`, `/register`, `/` (the
   interviews list), `/meetings/:id` (the details) and `/profile` (email, role,
   date the account was created, and a password change form with current, new
-  and confirmed new password), so a refresh and a link
+  and confirmed new password) and `/admin/users` (admin only: email, role,
+  status, date created; "Deactivate" with a `ConfirmDialog`, "Activate", and
+  "Set password" with a form under the row; no buttons on the admin's own
+  row), so a refresh and a link
   to an interview work; any other address goes to `/`. `RequireAuth` sends a
-  user who is not logged in to `/login`, `GuestOnly` sends a logged-in user
+  user who is not logged in to `/login`, `RequireAdmin` (inside
+  `RequireAuth`) sends anyone who is not an admin to `/`, `GuestOnly` sends a logged-in user
   from `/login` and `/register` to `/` (also right after a login). The login
   page has email, password, an error message and a link to registration; the
   register page has email, password, password confirmation (compared only in
@@ -109,7 +126,8 @@ A small web app with user accounts (see "Users and login" below):
   in at once. `AuthProvider` (`authContext.js`, `useAuth()`) holds the user:
   it asks `GET /api/auth/me` at startup and after every login and
   registration (a 401 there means the browser did not keep the cookie:
-  `LoginCookieError`). The navigation shows the user's email (a link to
+  `LoginCookieError`). The navigation shows "Users" (a link to
+  `/admin/users`, only for the admin), the user's email (a link to
   `/profile`) and "Logout".
   axios sends the cookie with every request (`withCredentials`), and its
   interceptor in `api.js` turns any 401 (except a failed login) into a logout
@@ -126,7 +144,9 @@ A small web app with user accounts (see "Users and login" below):
   `app/services/meetings.py`, which filters in the SQL query, so another
   user's interview is a 404 exactly like one that does not exist. The
   migration that added `user_id` gave the existing interviews to the admin
-  and stops when there are interviews but no admin yet.
+  and stops when there are interviews but no admin yet. Every row of
+  `GET /api/meetings` has `owner_email` (the uploader); the list shows it in
+  an "Owner" column only to the admin.
 - Swagger (`/docs`, `/redoc`, `/openapi.json`) exists only when
   `ENABLE_DOCS=true`; it is off by default and in production.
 - The UI texts talk about interviews; the names in the code and the API stay
@@ -170,7 +190,10 @@ A small web app with user accounts (see "Users and login" below):
   `backend/tests/test_meeting_access.py`, whose test fails for any other
   endpoint that answers without a login). An endpoint for an interview checks
   ownership by getting it through `get_meeting(db, meeting_id, user)`: another
-  user's interview is a 404, never a 403.
+  user's interview is a 404, never a 403. An endpoint only for the admin goes
+  under `/api/admin/` (`app/routers/admin.py` or another router with
+  `require_admin`); `backend/tests/test_admin.py` checks that every one of
+  them answers 403 to a regular user.
 - Write only the tests that are needed: for security (login, permissions,
   ownership), for anything whose failure would lose data or leave an interview
   stuck, and for logic that breaks easily (such as parsing). No tests for simple
