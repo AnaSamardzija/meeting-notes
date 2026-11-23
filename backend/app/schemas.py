@@ -155,6 +155,16 @@ class LoginRequest(BaseModel):
     password: str = Field(max_length=PASSWORD_MAX_LENGTH)
 
 
+class ChangePasswordRequest(BaseModel):
+    """The body of POST /api/auth/password. The new password has the same
+    rules as at registration."""
+
+    current_password: str = Field(max_length=PASSWORD_MAX_LENGTH)
+    new_password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH
+    )
+
+
 class UserRead(BaseModel):
     """What the API returns for a user; never the password hash."""
 

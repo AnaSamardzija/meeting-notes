@@ -73,22 +73,33 @@ A small web app with user accounts (see "Users and login" below):
   database; a table is added only if the numbers are ever needed in the app.
 - Users and login. Table `users`: email (unique,
   stored in lower case), argon2 password hash only (`argon2-cffi`), role
-  `user` or `admin`, `is_active`, `created_at`. `POST /api/auth/register`
+  `user` or `admin`, `is_active`, `token_version`, `created_at`.
+  `POST /api/auth/register`
   (open for now; always role `user`; 409 for a taken email, 422 for a password
   under 10 characters or, when `ALLOWED_EMAIL_DOMAIN` is set, another domain),
-  `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
-  Register and login put a JWT (`PyJWT`, HS256, `JWT_SECRET`) in the httpOnly,
-  Secure, SameSite=Strict cookie `access_token`, valid `JWT_EXPIRE_HOURS`.
+  `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`,
+  `POST /api/auth/password` (current and new password; 400 for a wrong current
+  password, never 401, which the frontend treats as a lost login).
+  Register and login put a JWT (`PyJWT`, HS256, `JWT_SECRET`; claims `sub`,
+  `ver` = the user's `token_version`, `iat`, `exp`) in the httpOnly,
+  Secure, SameSite=Strict cookie `access_token`, valid `JWT_EXPIRE_HOURS`
+  (default 168 = 7 days) from the login, not extended while the user works.
+  Logout only deletes the cookie. A password change increases
+  `token_version`, so every older token (other browsers) stops working; the
+  browser that changed it gets a new cookie and stays logged in.
   Unknown email, wrong password and deactivated account all get the same 401.
   `get_current_user` (reads the cookie, checks the JWT, loads the user; 401
-  also for a deactivated user) and `require_admin` (403) are in
+  also for a deactivated user and for a token whose `ver` is not the user's
+  `token_version`) and `require_admin` (403) are in
   `app/dependencies.py`. The admin is made only by `python -m app.create_admin`
   from `ADMIN_EMAIL` and `ADMIN_PASSWORD`: it can run any number of times,
   changes nothing when the admin exists, and never makes an existing regular
   user an admin. Email confirmation and forgotten passwords are not done.
 - Frontend pages (`react-router`, declarative mode; `frontend/src/App.jsx`,
   page components in `frontend/src/pages/`): `/login`, `/register`, `/` (the
-  interviews list) and `/meetings/:id` (the details), so a refresh and a link
+  interviews list), `/meetings/:id` (the details) and `/profile` (email, role,
+  date the account was created, and a password change form with current, new
+  and confirmed new password), so a refresh and a link
   to an interview work; any other address goes to `/`. `RequireAuth` sends a
   user who is not logged in to `/login`, `GuestOnly` sends a logged-in user
   from `/login` and `/register` to `/` (also right after a login). The login
@@ -98,7 +109,8 @@ A small web app with user accounts (see "Users and login" below):
   in at once. `AuthProvider` (`authContext.js`, `useAuth()`) holds the user:
   it asks `GET /api/auth/me` at startup and after every login and
   registration (a 401 there means the browser did not keep the cookie:
-  `LoginCookieError`). The navigation shows the user's email and "Logout".
+  `LoginCookieError`). The navigation shows the user's email (a link to
+  `/profile`) and "Logout".
   axios sends the cookie with every request (`withCredentials`), and its
   interceptor in `api.js` turns any 401 (except a failed login) into a logout
   in the UI, which leads to `/login`.

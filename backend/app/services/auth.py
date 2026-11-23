@@ -40,6 +40,10 @@ class InvalidCredentialsError(Exception):
     of them, so the response does not reveal which one it was."""
 
 
+class WrongPasswordError(Exception):
+    """The current password given for a password change is not right."""
+
+
 class NotAnAdminError(Exception):
     """create_admin found a regular user with the admin's email."""
 
@@ -63,21 +67,25 @@ def verify_password(password_hash: str, password: str) -> bool:
         return False
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user: User) -> str:
     """Return a signed token that says who the user is and until when."""
     now = datetime.now(UTC)
     payload = {
         # "sub" (subject) must be a string in a JWT
-        "sub": str(user_id),
+        "sub": str(user.id),
+        # The token works only while the user's token_version is the same,
+        # so a password change ends every older login
+        "ver": user.token_version,
         "iat": now,
         "exp": now + timedelta(hours=settings.jwt_expire_hours),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=JWT_ALGORITHM)
 
 
-def decode_access_token(token: str) -> int | None:
-    """Return the user id from a token, or None when the token is not valid
-    (wrong signature, expired, changed or not a JWT at all)."""
+def decode_access_token(token: str) -> tuple[int, int] | None:
+    """Return the user id and the token version from a token, or None when
+    the token is not valid (wrong signature, expired, changed, made before
+    "ver" was added, or not a JWT at all)."""
     try:
         # algorithms: only HS256 is accepted, so a token cannot choose a
         # weaker algorithm (or "none") for itself. decode also checks "exp"
@@ -85,10 +93,10 @@ def decode_access_token(token: str) -> int | None:
             token,
             settings.jwt_secret,
             algorithms=[JWT_ALGORITHM],
-            options={"require": ["exp", "sub"]},
+            options={"require": ["exp", "sub", "ver"]},
         )
-        return int(payload["sub"])
-    except (jwt.InvalidTokenError, ValueError):
+        return int(payload["sub"]), int(payload["ver"])
+    except (jwt.InvalidTokenError, ValueError, TypeError):
         return None
 
 
@@ -131,6 +139,21 @@ def authenticate(db: Session, email: str, password: str) -> User:
     if not verify_password(user.password_hash, password) or not user.is_active:
         raise InvalidCredentialsError("Incorrect email or password")
     return user
+
+
+def change_password(
+    db: Session, user: User, current_password: str, new_password: str
+) -> None:
+    """Set a new password after checking the current one.
+
+    token_version goes up, so every login token made before (in this browser
+    and in any other) stops working; the caller gives this browser a new one.
+    """
+    if not verify_password(user.password_hash, current_password):
+        raise WrongPasswordError("The current password is incorrect")
+    user.password_hash = hash_password(new_password)
+    user.token_version += 1
+    db.commit()
 
 
 def create_admin(db: Session, email: str, password: str) -> bool:

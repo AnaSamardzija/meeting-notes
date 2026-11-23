@@ -5,6 +5,7 @@ import RequireAuth from './components/RequireAuth'
 import LoginPage from './pages/LoginPage'
 import MeetingPage from './pages/MeetingPage'
 import MeetingsPage from './pages/MeetingsPage'
+import ProfilePage from './pages/ProfilePage'
 import RegisterPage from './pages/RegisterPage'
 
 // The pages of the app and their addresses. A route without a path (the
@@ -21,6 +22,7 @@ function App() {
         <Route element={<RequireAuth />}>
           <Route path="/" element={<MeetingsPage />} />
           <Route path="/meetings/:id" element={<MeetingPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
         {/* Any other address goes to the interviews (or to /login) */}
         <Route path="*" element={<Navigate to="/" replace />} />

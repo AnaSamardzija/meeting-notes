@@ -100,6 +100,16 @@ export async function getMe() {
   return response.data
 }
 
+// Changes the password of the logged-in user. The backend logs out every
+// other browser and gives this one a new login cookie. A wrong current
+// password is a 400 with a message for the user.
+export async function changePassword(currentPassword, newPassword) {
+  await api.post('/api/auth/password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  })
+}
+
 // Returns the rows of the meetings list, the newest first.
 export async function getMeetings() {
   const response = await api.get('/api/meetings')

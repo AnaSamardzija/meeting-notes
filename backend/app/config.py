@@ -54,8 +54,9 @@ class Settings(BaseSettings):
     # can make a token for any user. No default on purpose, and at least 32
     # characters, because a short secret can be guessed
     jwt_secret: str = Field(min_length=32)
-    # How long a login lasts; the cookie and the token expire together
-    jwt_expire_hours: int = Field(default=12, gt=0)
+    # How long a login lasts, counted from the login (it is not extended while
+    # the user works); the cookie and the token expire together. 168 = 7 days
+    jwt_expire_hours: int = Field(default=168, gt=0)
     # When set (for example example.com), only addresses with exactly this
     # domain can register. Empty: any address can
     allowed_email_domain: str = ""

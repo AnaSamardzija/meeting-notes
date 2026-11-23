@@ -29,10 +29,17 @@ def get_current_user(
     """Return the logged-in user, or answer 401.
 
     The user is loaded from the database on every request, so a deactivated
-    user is locked out at once, not only when the token expires.
+    user is locked out at once, not only when the token expires. The same
+    goes for a token made before a password change: its version is older
+    than the user's token_version.
     """
-    user_id = decode_access_token(access_token) if access_token else None
-    user = db.get(User, user_id) if user_id is not None else None
+    decoded = decode_access_token(access_token) if access_token else None
+    user = None
+    if decoded is not None:
+        user_id, token_version = decoded
+        user = db.get(User, user_id)
+        if user is not None and user.token_version != token_version:
+            user = None
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"

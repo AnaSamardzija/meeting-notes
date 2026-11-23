@@ -49,7 +49,9 @@ function Layout() {
               {logoutError && (
                 <span className="small text-white">Could not log out</span>
               )}
-              <span className="navbar-text">{user.email}</span>
+              <Link className="nav-link text-white" to="/profile">
+                {user.email}
+              </Link>
               <button
                 type="button"
                 className="btn btn-outline-light btn-sm"

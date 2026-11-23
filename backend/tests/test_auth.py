@@ -184,6 +184,18 @@ def _unsigned_token(user_id: int) -> str:
     return jwt.encode({"sub": str(user_id), "exp": future}, None, algorithm="none")
 
 
+def _token_with_version(user_id: int, version: int | None) -> str:
+    # A correctly signed token; version None leaves "ver" out, as in the
+    # tokens made before it was added
+    payload = {
+        "sub": str(user_id),
+        "exp": datetime.now(UTC) + timedelta(hours=1),
+    }
+    if version is not None:
+        payload["ver"] = version
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+
+
 @pytest.mark.parametrize(
     "make_token",
     [
@@ -191,8 +203,19 @@ def _unsigned_token(user_id: int) -> str:
         _token_signed_with_another_secret,
         _unsigned_token,
         lambda user_id: "not-a-jwt",
+        lambda user_id: _token_with_version(user_id, None),
+        # The user's token_version is 0: a token of another version is one
+        # from before (or after) a password change
+        lambda user_id: _token_with_version(user_id, 1),
     ],
-    ids=["expired", "another secret", "unsigned", "not a jwt"],
+    ids=[
+        "expired",
+        "another secret",
+        "unsigned",
+        "not a jwt",
+        "without a version",
+        "another version",
+    ],
 )
 def test_me_with_an_invalid_token_is_401(client, make_user, make_token):
     user = make_user()
@@ -212,6 +235,55 @@ def test_a_user_deactivated_after_login_is_locked_out_at_once(client, db):
     response = client.get("/api/auth/me")
 
     assert response.status_code == 401
+
+
+# --- Password change ---
+
+NEW_PASSWORD = "another-horse-battery"
+
+
+def change_password(client, current_password=PASSWORD, new_password=NEW_PASSWORD):
+    return client.post(
+        "/api/auth/password",
+        json={"current_password": current_password, "new_password": new_password},
+    )
+
+
+def test_a_wrong_current_password_changes_nothing_and_keeps_the_login(client, db):
+    register(client)
+    user = find_user(db)
+    password_hash = user.password_hash
+
+    response = change_password(client, current_password="wrong-password")
+
+    # 400, not 401: the frontend would log the user out on a 401
+    assert response.status_code == 400
+    db.refresh(user)
+    assert user.password_hash == password_hash
+    assert user.token_version == 0
+    assert client.get("/api/auth/me").status_code == 200
+
+
+def test_a_password_change_logs_out_every_other_browser(client, make_user):
+    make_user()
+    login(client)
+    # Another browser logged in with the same account before the change
+    other_browser = TestClient(app, base_url="https://testserver")
+    login(other_browser)
+
+    response = change_password(client)
+
+    assert response.status_code == 204
+    # This browser got a new cookie and stays logged in; the other is out
+    assert ACCESS_TOKEN_COOKIE in response.cookies
+    assert client.get("/api/auth/me").status_code == 200
+    assert other_browser.get("/api/auth/me").status_code == 401
+    # Only the new password works from now on
+    assert login(TestClient(app, base_url="https://testserver")).status_code == 401
+    new_login = login(
+        TestClient(app, base_url="https://testserver"), password=NEW_PASSWORD
+    )
+    assert new_login.status_code == 200
 
 
 # --- Admin ---

@@ -1,7 +1,7 @@
 import enum
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -89,4 +89,8 @@ class User(Base):
     # A deactivated user cannot log in, and a token they already have stops
     # working at once
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Written into every login token ("ver"). A password change increases it,
+    # so every token made before the change stops working (see
+    # app/services/auth.py and get_current_user in app/dependencies.py)
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

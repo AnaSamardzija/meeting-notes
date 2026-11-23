@@ -86,7 +86,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 | `GEMINI_MODEL`           | `gemini-3.8-flash`      | Gemini model for the transcription and the summary        |
 | `GEMINI_TIMEOUT_SECONDS` | `600`                   | Longest time one request to Gemini may take, in seconds   |
 | `JWT_SECRET`             | required                | Signs the login tokens; at least 32 random characters     |
-| `JWT_EXPIRE_HOURS`       | `12`                    | How long a login lasts, in hours                          |
+| `JWT_EXPIRE_HOURS`       | `168`                   | How long a login lasts, in hours from the login           |
 | `ALLOWED_EMAIL_DOMAIN`   | empty                   | Only this email domain can register; empty allows any     |
 | `ADMIN_EMAIL`            | -                       | Email of the first admin (see Creating the admin)         |
 | `ADMIN_PASSWORD`         | -                       | First password of the admin, at least 10 characters       |
