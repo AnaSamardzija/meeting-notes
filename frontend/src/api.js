@@ -110,6 +110,30 @@ export async function changePassword(currentPassword, newPassword) {
   })
 }
 
+// Admin only (403 for anyone else). Returns every user, deactivated ones too,
+// by email.
+export async function getUsers() {
+  const response = await api.get('/api/admin/users')
+  return response.data
+}
+
+// Admin only. Activates or deactivates the account and returns the updated
+// user. The admin cannot deactivate themselves (400).
+export async function setUserActive(id, isActive) {
+  const response = await api.patch(`/api/admin/users/${id}`, {
+    is_active: isActive,
+  })
+  return response.data
+}
+
+// Admin only. Gives the user a new password, e.g. when they forgot theirs;
+// every login of the user ends.
+export async function setUserPassword(id, newPassword) {
+  await api.post(`/api/admin/users/${id}/password`, {
+    new_password: newPassword,
+  })
+}
+
 // Returns the rows of the meetings list, the newest first.
 export async function getMeetings() {
   const response = await api.get('/api/meetings')

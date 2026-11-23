@@ -60,6 +60,8 @@ def test_list_shows_the_newest_meeting_first_with_its_interviewee(
             "uploaded_at": "2026-10-02T09:00:00Z",
             # Not processed yet, so nobody is known
             "interviewee": None,
+            # The user who uploaded it (owner in conftest.py)
+            "owner_email": "owner@example.com",
         },
         {
             "id": older.id,
@@ -68,6 +70,7 @@ def test_list_shows_the_newest_meeting_first_with_its_interviewee(
             "status": "done",
             "uploaded_at": "2026-10-01T09:00:00Z",
             "interviewee": INTERVIEWEE,
+            "owner_email": "owner@example.com",
         },
     ]
 

@@ -85,9 +85,11 @@ class MeetingRead(BaseModel):
 
 class MeetingListItem(MeetingRead):
     """One row of the meetings list: no transcript or summary, only who was
-    interviewed (None until processing is done)."""
+    interviewed (None until processing is done) and the email of the user
+    who uploaded it."""
 
     interviewee: Interviewee | None
+    owner_email: str
 
 
 class MeetingUpdate(BaseModel):
@@ -165,6 +167,22 @@ class ChangePasswordRequest(BaseModel):
     )
 
 
+class UserActiveUpdate(BaseModel):
+    """The body of PATCH /api/admin/users/{id}: activates or deactivates the
+    account."""
+
+    is_active: bool
+
+
+class SetPasswordRequest(BaseModel):
+    """The body of POST /api/admin/users/{id}/password: the new password the
+    admin gives a user who forgot theirs. The same rules as at registration."""
+
+    new_password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH
+    )
+
+
 class UserRead(BaseModel):
     """What the API returns for a user; never the password hash."""
 
@@ -174,4 +192,7 @@ class UserRead(BaseModel):
     email: str
     role: UserRole
     is_active: bool
+    # True while the user must change the password the admin set; the
+    # frontend then keeps the user on the profile page
+    must_change_password: bool
     created_at: UtcDateTime

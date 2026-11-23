@@ -1,17 +1,13 @@
 import { useState } from 'react'
-import {
-  changePassword,
-  getErrorMessage,
-  PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
-} from '../api'
-import { useAuth } from '../authContext'
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../api'
+import { getAuthErrorMessage, useAuth } from '../authContext'
 
 // The page at /profile: the account of the logged-in user and the form that
 // changes the password. RequireAuth lets only a logged-in user in, so user is
-// always set here.
+// always set here. A user whose password was set by the admin is kept on this
+// page (see RequireAuth) until they change it.
 function ProfilePage() {
-  const { user } = useAuth()
+  const { user, changePassword } = useAuth()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -39,8 +35,9 @@ function ProfilePage() {
       setConfirmPassword('')
       setChanged(true)
     } catch (error) {
-      // E.g. 400 for a wrong current password, with the backend's message
-      setError(getErrorMessage(error, 'Could not change the password'))
+      // E.g. 400 for a wrong current password or for the same password, with
+      // the backend's message
+      setError(getAuthErrorMessage(error, 'Could not change the password'))
     } finally {
       setSubmitting(false)
     }
@@ -68,6 +65,13 @@ function ProfilePage() {
         <div className="card shadow-sm">
           <div className="card-body p-4">
             <h2 className="h5 mb-4">Change password</h2>
+
+            {user.must_change_password && (
+              <div className="alert alert-warning" role="alert">
+                Your password was set by an administrator. Change it to
+                continue using the app.
+              </div>
+            )}
 
             <form onSubmit={handleSubmit}>
               <div className="mb-3">

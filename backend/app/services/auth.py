@@ -44,6 +44,10 @@ class WrongPasswordError(Exception):
     """The current password given for a password change is not right."""
 
 
+class SamePasswordError(Exception):
+    """The new password is the same as the current one."""
+
+
 class NotAnAdminError(Exception):
     """create_admin found a regular user with the admin's email."""
 
@@ -148,11 +152,19 @@ def change_password(
 
     token_version goes up, so every login token made before (in this browser
     and in any other) stops working; the caller gives this browser a new one.
+    The new password must differ from the current one: otherwise a user could
+    keep the password the admin set (and knows). After the change the user
+    no longer has to change it (must_change_password).
     """
     if not verify_password(user.password_hash, current_password):
         raise WrongPasswordError("The current password is incorrect")
+    if verify_password(user.password_hash, new_password):
+        raise SamePasswordError(
+            "The new password must be different from the current one"
+        )
     user.password_hash = hash_password(new_password)
     user.token_version += 1
+    user.must_change_password = False
     db.commit()
 
 

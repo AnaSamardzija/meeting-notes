@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  changePassword as changePasswordRequest,
   getMe,
   login as loginRequest,
   logout as logoutRequest,
@@ -76,8 +77,18 @@ function AuthProvider({ children }) {
     setUser(null)
   }
 
+  // After the change the user is loaded again: must_change_password is false
+  // now, so RequireAuth lets the user leave the profile page. It also checks
+  // that the browser keeps the new login cookie the backend sent.
+  async function changePassword(currentPassword, newPassword) {
+    await changePasswordRequest(currentPassword, newPassword)
+    await loadUser()
+  }
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, login, register, logout, changePassword }}
+    >
       {children}
     </AuthContext.Provider>
   )

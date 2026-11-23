@@ -7,6 +7,8 @@ import { getErrorMessage } from './api'
 // - user: undefined while the app is still asking the backend, null when
 //   nobody is logged in, otherwise the user from /api/auth/me
 // - login(email, password), register(email, password), logout()
+// - changePassword(currentPassword, newPassword), which also loads the user
+//   again (must_change_password becomes false)
 export const AuthContext = createContext(null)
 
 // Returns the value above, e.g. const { user, logout } = useAuth()

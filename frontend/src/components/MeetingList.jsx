@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { getErrorMessage, getMeetings } from '../api'
+import { useAuth } from '../authContext'
 import { isInProgress, REFRESH_INTERVAL_MS } from '../meetingStatus'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
@@ -25,6 +26,11 @@ function IntervieweeCell({ interviewee }) {
 
 // reloadKey: the list is loaded again every time this number changes.
 function MeetingList({ reloadKey }) {
+  const { user } = useAuth()
+  // The admin sees the interviews of every user, so the list also shows who
+  // uploaded each one. A regular user sees only their own, so the column
+  // would always show their own email.
+  const showOwner = user.role === 'admin'
   // null until the first answer arrives
   const [meetings, setMeetings] = useState(null)
   const [error, setError] = useState(null)
@@ -110,15 +116,17 @@ function MeetingList({ reloadKey }) {
   }
 
   return (
-    // table-responsive: on a narrow screen the table scrolls sideways
-    // instead of breaking the page
+    // table-stack (index.css): on a narrow screen every row becomes a card,
+    // and data-label names the value of a cell there. table-responsive only
+    // catches a table that is still too wide on a wide screen
     <div className="table-responsive">
-      <table className="table table-hover align-middle mb-0">
+      <table className="table table-hover table-stack align-middle mb-0">
         <thead>
           <tr>
             <th>Interview</th>
             <th>Interviewee</th>
             <th>Uploaded</th>
+            {showOwner && <th>Owner</th>}
             <th>Status</th>
             <th></th>
           </tr>
@@ -130,12 +138,18 @@ function MeetingList({ reloadKey }) {
               {/* When the user did not give a title, the AI writes it, so it
                   is missing until the meeting is processed */}
               <td>{meeting.title ?? meeting.original_filename}</td>
-              <td>
+              <td data-label="Interviewee">
                 <IntervieweeCell interviewee={meeting.interviewee} />
               </td>
-              <td className="text-nowrap">
+              <td className="text-nowrap" data-label="Uploaded">
                 {new Date(meeting.uploaded_at).toLocaleString()}
               </td>
+              {showOwner && (
+                // text-break: a long email wraps instead of widening the table
+                <td className="text-break" data-label="Owner">
+                  {meeting.owner_email}
+                </td>
+              )}
               <td>
                 <StatusBadge status={meeting.status} />
               </td>

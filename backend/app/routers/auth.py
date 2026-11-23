@@ -3,7 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.dependencies import ACCESS_TOKEN_COOKIE, get_current_user
+from app.dependencies import (
+    ACCESS_TOKEN_COOKIE,
+    get_current_user_allow_temporary_password,
+)
 from app.models import User
 from app.schemas import (
     ChangePasswordRequest,
@@ -65,8 +68,11 @@ def logout():
     return response
 
 
+# /me and /password also work for a user who must change the password the
+# admin set: the frontend needs to know who is logged in, and the password
+# change is the way out. Every other endpoint answers 403 to such a user.
 @router.get("/me", response_model=UserRead)
-def me(user: User = Depends(get_current_user)):
+def me(user: User = Depends(get_current_user_allow_temporary_password)):
     return user
 
 
@@ -76,7 +82,7 @@ def me(user: User = Depends(get_current_user)):
 def change_password(
     data: ChangePasswordRequest,
     response: Response,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_allow_temporary_password),
     db: Session = Depends(get_db),
 ):
     auth_service.change_password(db, user, data.current_password, data.new_password)
