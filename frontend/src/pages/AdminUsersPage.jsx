@@ -214,7 +214,9 @@ function AdminUsersPage() {
 
   function handlePasswordSet(user) {
     setPasswordUserId(null)
-    setMessage(`A new password was set for ${user.email}.`)
+    setMessage(
+      `A new password was set for ${user.email}. They must change it after logging in.`,
+    )
   }
 
   let content
@@ -236,9 +238,10 @@ function AdminUsersPage() {
           </div>
         )}
 
-        {/* table-responsive: on a narrow screen the table scrolls sideways */}
+        {/* table-stack (index.css): on a narrow screen every row becomes a
+            card, and data-label names the value of a cell there */}
         <div className="table-responsive">
-          <table className="table align-middle mb-0">
+          <table className="table table-stack align-middle mb-0">
             <thead>
               <tr>
                 <th>Email</th>
@@ -258,8 +261,10 @@ function AdminUsersPage() {
                   // does not allow
                   <Fragment key={user.id}>
                     <tr>
-                      <td>{user.email}</td>
-                      <td className="text-capitalize">{user.role}</td>
+                      <td className="text-break">{user.email}</td>
+                      <td className="text-capitalize" data-label="Role">
+                        {user.role}
+                      </td>
                       <td>
                         {user.is_active ? (
                           <span className="badge text-bg-success">Active</span>
@@ -269,7 +274,7 @@ function AdminUsersPage() {
                           </span>
                         )}
                       </td>
-                      <td className="text-nowrap">
+                      <td className="text-nowrap" data-label="Created">
                         {new Date(user.created_at).toLocaleString()}
                       </td>
                       <td className="text-end text-nowrap">

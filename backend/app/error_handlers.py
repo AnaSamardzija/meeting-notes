@@ -8,6 +8,7 @@ from app.services.auth import (
     EmailDomainNotAllowedError,
     EmailTakenError,
     InvalidCredentialsError,
+    SamePasswordError,
     WrongPasswordError,
 )
 from app.services.meetings import (
@@ -39,6 +40,7 @@ SERVICE_ERROR_STATUS_CODES: dict[type[Exception], int] = {
     # Not 401: the user is logged in, only the password in the form is wrong,
     # and the frontend treats any 401 as a lost login
     WrongPasswordError: status.HTTP_400_BAD_REQUEST,
+    SamePasswordError: status.HTTP_400_BAD_REQUEST,
     UserNotFoundError: status.HTTP_404_NOT_FOUND,
     OwnAccountError: status.HTTP_400_BAD_REQUEST,
 }

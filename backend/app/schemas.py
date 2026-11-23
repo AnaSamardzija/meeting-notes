@@ -192,4 +192,7 @@ class UserRead(BaseModel):
     email: str
     role: UserRole
     is_active: bool
+    # True while the user must change the password the admin set; the
+    # frontend then keeps the user on the profile page
+    must_change_password: bool
     created_at: UtcDateTime

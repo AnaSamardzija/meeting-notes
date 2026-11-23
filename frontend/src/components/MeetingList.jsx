@@ -116,10 +116,11 @@ function MeetingList({ reloadKey }) {
   }
 
   return (
-    // table-responsive: on a narrow screen the table scrolls sideways
-    // instead of breaking the page
+    // table-stack (index.css): on a narrow screen every row becomes a card,
+    // and data-label names the value of a cell there. table-responsive only
+    // catches a table that is still too wide on a wide screen
     <div className="table-responsive">
-      <table className="table table-hover align-middle mb-0">
+      <table className="table table-hover table-stack align-middle mb-0">
         <thead>
           <tr>
             <th>Interview</th>
@@ -137,13 +138,18 @@ function MeetingList({ reloadKey }) {
               {/* When the user did not give a title, the AI writes it, so it
                   is missing until the meeting is processed */}
               <td>{meeting.title ?? meeting.original_filename}</td>
-              <td>
+              <td data-label="Interviewee">
                 <IntervieweeCell interviewee={meeting.interviewee} />
               </td>
-              <td className="text-nowrap">
+              <td className="text-nowrap" data-label="Uploaded">
                 {new Date(meeting.uploaded_at).toLocaleString()}
               </td>
-              {showOwner && <td>{meeting.owner_email}</td>}
+              {showOwner && (
+                // text-break: a long email wraps instead of widening the table
+                <td className="text-break" data-label="Owner">
+                  {meeting.owner_email}
+                </td>
+              )}
               <td>
                 <StatusBadge status={meeting.status} />
               </td>

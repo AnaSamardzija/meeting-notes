@@ -142,3 +142,41 @@ def test_a_password_set_by_the_admin_ends_every_login_of_the_user(
     assert user_client.get("/api/auth/me").status_code == 401
     assert login(client_for, user.email, PASSWORD).status_code == 401
     assert login(client_for, user.email, NEW_PASSWORD).status_code == 200
+
+
+def test_a_password_set_by_the_admin_must_be_changed_before_anything_else(
+    admin_client, client_for, make_user, make_meeting
+):
+    user = make_user()
+    make_meeting(user_id=user.id)
+    admin_client.post(
+        f"/api/admin/users/{user.id}/password", json={"new_password": NEW_PASSWORD}
+    )
+    # A new browser, which keeps the cookie of the login
+    user_client = client_for(None)
+    user_client.post(
+        "/api/auth/login", json={"email": user.email, "password": NEW_PASSWORD}
+    )
+
+    # Logged in, but only /me and the password change work
+    assert user_client.get("/api/auth/me").json()["must_change_password"] is True
+    assert user_client.get("/api/meetings").status_code == 403
+
+    # The password the admin set (and knows) cannot be kept
+    same = user_client.post(
+        "/api/auth/password",
+        json={"current_password": NEW_PASSWORD, "new_password": NEW_PASSWORD},
+    )
+    assert same.status_code == 400
+    assert user_client.get("/api/meetings").status_code == 403
+
+    changed = user_client.post(
+        "/api/auth/password",
+        json={"current_password": NEW_PASSWORD, "new_password": "own-horse-battery"},
+    )
+
+    assert changed.status_code == 204
+    assert user_client.get("/api/auth/me").json()["must_change_password"] is False
+    meetings = user_client.get("/api/meetings")
+    assert meetings.status_code == 200
+    assert len(meetings.json()) == 1

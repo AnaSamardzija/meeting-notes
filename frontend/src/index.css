@@ -28,3 +28,47 @@ body {
 .confirm-dialog::backdrop {
   background-color: rgb(0 0 0 / 50%);
 }
+
+/* A table whose rows become cards on a narrow screen, so the page never
+   scrolls sideways (used by the interviews list and the users page). Below
+   Bootstrap's lg breakpoint (992px) the header is hidden and every cell is
+   shown on its own line; a cell with data-label="..." shows that label above
+   its value, in place of the hidden header. On a wide screen it is an
+   ordinary table. */
+@media (max-width: 991.98px) {
+  .table-stack thead {
+    display: none;
+  }
+
+  .table-stack,
+  .table-stack tbody,
+  .table-stack tr,
+  .table-stack td {
+    display: block;
+    width: 100%;
+  }
+
+  .table-stack tr {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border: var(--bs-border-width) solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background-color: var(--bs-body-bg);
+  }
+
+  /* !important: wins over Bootstrap's text-end and text-nowrap, which are
+     !important too and are meant only for the table */
+  .table-stack td {
+    padding: 0.25rem 0;
+    border: none;
+    text-align: left !important;
+    white-space: normal !important;
+  }
+
+  .table-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+  }
+}

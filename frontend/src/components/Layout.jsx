@@ -45,11 +45,15 @@ function Layout() {
             Meeting Notes AI
           </Link>
           {user && (
-            <div className="d-flex align-items-center gap-3">
+            // flex-wrap: on a narrow screen the links go to a second line
+            // instead of pushing the page wider
+            <div className="d-flex flex-wrap align-items-center gap-3">
               {logoutError && (
                 <span className="small text-white">Could not log out</span>
               )}
-              {user.role === 'admin' && (
+              {/* Not while the password must be changed: RequireAuth would
+                  send the admin back to /profile anyway */}
+              {user.role === 'admin' && !user.must_change_password && (
                 <Link className="nav-link text-white" to="/admin/users">
                   Users
                 </Link>

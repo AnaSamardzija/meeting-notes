@@ -73,13 +73,17 @@ A small web app with user accounts (see "Users and login" below):
   database; a table is added only if the numbers are ever needed in the app.
 - Users and login. Table `users`: email (unique,
   stored in lower case), argon2 password hash only (`argon2-cffi`), role
-  `user` or `admin`, `is_active`, `token_version`, `created_at`.
+  `user` or `admin`, `is_active`, `token_version`, `must_change_password`,
+  `created_at`.
   `POST /api/auth/register`
   (open for now; always role `user`; 409 for a taken email, 422 for a password
   under 10 characters or, when `ALLOWED_EMAIL_DOMAIN` is set, another domain),
   `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`,
   `POST /api/auth/password` (current and new password; 400 for a wrong current
-  password, never 401, which the frontend treats as a lost login).
+  password and for a new password equal to the current one, never 401, which
+  the frontend treats as a lost login; sets `must_change_password` to false).
+  The user (`UserRead`, from `/me`, login, register and the admin list)
+  includes `must_change_password`.
   Register and login put a JWT (`PyJWT`, HS256, `JWT_SECRET`; claims `sub`,
   `ver` = the user's `token_version`, `iat`, `exp`) in the httpOnly,
   Secure, SameSite=Strict cookie `access_token`, valid `JWT_EXPIRE_HOURS`
@@ -90,8 +94,12 @@ A small web app with user accounts (see "Users and login" below):
   Unknown email, wrong password and deactivated account all get the same 401.
   `get_current_user` (reads the cookie, checks the JWT, loads the user; 401
   also for a deactivated user and for a token whose `ver` is not the user's
-  `token_version`) and `require_admin` (403) are in
-  `app/dependencies.py`. The admin is made only by `python -m app.create_admin`
+  `token_version`; then 403 "You must change your password before
+  continuing" while `must_change_password` is true) and `require_admin` (403)
+  are in `app/dependencies.py`. Only `/me` and `/password` use
+  `get_current_user_allow_temporary_password` (the same without the 403), so
+  a user with a temporary password can reach only them (and the public
+  endpoints). The admin is made only by `python -m app.create_admin`
   from `ADMIN_EMAIL` and `ADMIN_PASSWORD`: it can run any number of times,
   changes nothing when the admin exists, and never makes an existing regular
   user an admin. Email confirmation and a "forgot password" flow are not
@@ -107,7 +115,9 @@ A small web app with user accounts (see "Users and login" below):
   password is changed on `/profile`). Users are never deleted, only
   deactivated, and their interviews stay. Deactivating and setting a password
   both increase `token_version`, so every older cookie of the user stops
-  working, also after the account is activated again.
+  working, also after the account is activated again. Setting a password also
+  sets `must_change_password`: the user must change the password (which the
+  admin knows) before doing anything else.
 - Frontend pages (`react-router`, declarative mode; `frontend/src/App.jsx`,
   page components in `frontend/src/pages/`): `/login`, `/register`, `/` (the
   interviews list), `/meetings/:id` (the details) and `/profile` (email, role,
@@ -117,7 +127,9 @@ A small web app with user accounts (see "Users and login" below):
   "Set password" with a form under the row; no buttons on the admin's own
   row), so a refresh and a link
   to an interview work; any other address goes to `/`. `RequireAuth` sends a
-  user who is not logged in to `/login`, `RequireAdmin` (inside
+  user who is not logged in to `/login` and a user with
+  `must_change_password` from any other page to `/profile` (which then shows
+  a warning above the password form), `RequireAdmin` (inside
   `RequireAuth`) sends anyone who is not an admin to `/`, `GuestOnly` sends a logged-in user
   from `/login` and `/register` to `/` (also right after a login). The login
   page has email, password, an error message and a link to registration; the
@@ -126,8 +138,9 @@ A small web app with user accounts (see "Users and login" below):
   in at once. `AuthProvider` (`authContext.js`, `useAuth()`) holds the user:
   it asks `GET /api/auth/me` at startup and after every login and
   registration (a 401 there means the browser did not keep the cookie:
-  `LoginCookieError`). The navigation shows "Users" (a link to
-  `/admin/users`, only for the admin), the user's email (a link to
+  `LoginCookieError`), and after a password change (its `changePassword`).
+  The navigation shows "Users" (a link to `/admin/users`, only for the admin
+  and not while the password must be changed), the user's email (a link to
   `/profile`) and "Logout".
   axios sends the cookie with every request (`withCredentials`), and its
   interceptor in `api.js` turns any 401 (except a failed login) into a logout
@@ -147,6 +160,9 @@ A small web app with user accounts (see "Users and login" below):
   and stops when there are interviews but no admin yet. Every row of
   `GET /api/meetings` has `owner_email` (the uploader); the list shows it in
   an "Owner" column only to the admin.
+- On a screen narrower than 992px the interviews list and the users table
+  show every row as a card (`.table-stack` in `frontend/src/index.css`, with
+  `data-label` on the cells), so the page does not scroll sideways.
 - Swagger (`/docs`, `/redoc`, `/openapi.json`) exists only when
   `ENABLE_DOCS=true`; it is off by default and in production.
 - The UI texts talk about interviews; the names in the code and the API stay
@@ -188,7 +204,11 @@ A small web app with user accounts (see "Users and login" below):
 - Every new endpoint needs a login (`get_current_user`); only health, register,
   login and logout are public (`PUBLIC_ENDPOINTS` in
   `backend/tests/test_meeting_access.py`, whose test fails for any other
-  endpoint that answers without a login). An endpoint for an interview checks
+  endpoint that answers without a login). A new endpoint uses
+  `get_current_user`, never `get_current_user_allow_temporary_password`, so a
+  user with a temporary password gets 403 there (`PASSWORD_CHANGE_ENDPOINTS`
+  in the same test file lists the only exceptions, `/me` and `/password`).
+  An endpoint for an interview checks
   ownership by getting it through `get_meeting(db, meeting_id, user)`: another
   user's interview is a 404, never a 403. An endpoint only for the admin goes
   under `/api/admin/` (`app/routers/admin.py` or another router with

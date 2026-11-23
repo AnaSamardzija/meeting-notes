@@ -5,6 +5,10 @@ An endpoint asks for the logged-in user with
 and for an admin with Depends(require_admin). FastAPI runs the dependency
 before the endpoint; when it raises an HTTPException, the endpoint does not
 run at all.
+
+get_current_user also refuses (403) a user who must change the password the
+admin set. Only the endpoints that such a user needs (/api/auth/me and
+/api/auth/password) use get_current_user_allow_temporary_password instead.
 """
 
 from fastapi import Cookie, Depends, HTTPException, status
@@ -18,7 +22,7 @@ from app.services.auth import decode_access_token
 ACCESS_TOKEN_COOKIE = "access_token"
 
 
-def get_current_user(
+def get_current_user_allow_temporary_password(
     # The browser sends the cookie by itself. include_in_schema=False: it is
     # not a field to fill in /docs (a page cannot set an httpOnly cookie)
     access_token: str | None = Cookie(
@@ -26,7 +30,9 @@ def get_current_user(
     ),
     db: Session = Depends(get_db),
 ) -> User:
-    """Return the logged-in user, or answer 401.
+    """Return the logged-in user, or answer 401, also when the user still has
+    to change the password the admin set. Only for the endpoints such a user
+    needs; every other endpoint uses get_current_user.
 
     The user is loaded from the database on every request, so a deactivated
     user is locked out at once, not only when the token expires. The same
@@ -43,6 +49,23 @@ def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
+        )
+    return user
+
+
+def get_current_user(
+    user: User = Depends(get_current_user_allow_temporary_password),
+) -> User:
+    """Return the logged-in user, or answer 401 (not logged in) or 403 (the
+    user must first change the password the admin set).
+
+    Every endpoint that needs a login uses this one, so a new endpoint is
+    closed to such a user without any extra code.
+    """
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must change your password before continuing",
         )
     return user
 

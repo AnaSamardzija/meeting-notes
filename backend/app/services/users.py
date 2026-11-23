@@ -61,7 +61,8 @@ def set_password(db: Session, admin: User, user_id: int, new_password: str) -> N
     """Give the user a new password, e.g. when they forgot theirs.
 
     token_version goes up, so every login of the user made before stops
-    working. Raises UserNotFoundError, or OwnAccountError for the admin's own
+    working. The admin knows this password, so the user must change it after
+    logging in (must_change_password). Raises UserNotFoundError, or OwnAccountError for the admin's own
     account: the admin changes their password on the profile page, which asks
     for the current one and keeps them logged in.
     """
@@ -72,4 +73,5 @@ def set_password(db: Session, admin: User, user_id: int, new_password: str) -> N
     user = _get_user(db, user_id)
     user.password_hash = hash_password(new_password)
     user.token_version += 1
+    user.must_change_password = True
     db.commit()

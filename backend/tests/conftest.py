@@ -215,12 +215,14 @@ def make_user(db):
         password: str = "correct-horse-battery",
         role: UserRole = UserRole.USER,
         is_active: bool = True,
+        must_change_password: bool = False,
     ) -> User:
         user = User(
             email=email,
             password_hash=hash_password(password),
             role=role,
             is_active=is_active,
+            must_change_password=must_change_password,
         )
         db.add(user)
         db.commit()

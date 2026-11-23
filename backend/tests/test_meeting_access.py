@@ -32,11 +32,27 @@ PROTECTED_ENDPOINTS = [
     endpoint for endpoint in _all_endpoints() if endpoint not in PUBLIC_ENDPOINTS
 ]
 
+# The only endpoints that need a login and still work for a user who must
+# change the password the admin set. Every other protected endpoint, also one
+# added later, must answer 403 to such a user.
+PASSWORD_CHANGE_ENDPOINTS = {
+    ("GET", "/api/auth/me"),
+    ("POST", "/api/auth/password"),
+}
+
+BLOCKED_UNTIL_PASSWORD_CHANGE = [
+    endpoint
+    for endpoint in PROTECTED_ENDPOINTS
+    if endpoint not in PASSWORD_CHANGE_ENDPOINTS
+]
+
 
 def test_the_meetings_endpoints_are_among_the_protected_ones():
-    # Makes sure the test below really has endpoints to check
+    # Makes sure the tests below really have endpoints to check
     assert ("GET", "/api/meetings") in PROTECTED_ENDPOINTS
     assert ("POST", "/api/meetings/{meeting_id}/process") in PROTECTED_ENDPOINTS
+    assert ("GET", "/api/meetings") in BLOCKED_UNTIL_PASSWORD_CHANGE
+    assert ("GET", "/api/admin/users") in BLOCKED_UNTIL_PASSWORD_CHANGE
 
 
 @pytest.mark.parametrize(
@@ -53,6 +69,36 @@ def test_every_endpoint_except_the_public_ones_needs_a_login(
     response = anonymous_client.request(method, url)
 
     assert response.status_code == 401
+    process_meeting_mock.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "method, path",
+    BLOCKED_UNTIL_PASSWORD_CHANGE,
+    ids=[" ".join(e) for e in BLOCKED_UNTIL_PASSWORD_CHANGE],
+)
+def test_a_user_with_a_temporary_password_gets_403_everywhere_else(
+    client_for, db, make_user, make_meeting, process_meeting_mock, method, path
+):
+    # An admin, so an admin endpoint could not answer 403 for being one
+    user = make_user(
+        email="temporary@example.com",
+        role=UserRole.ADMIN,
+        must_change_password=True,
+    )
+    meeting = make_meeting(user_id=user.id, title=TITLE)
+    url = re.sub(r"\{[^}]+\}", str(meeting.id), path)
+
+    # A body the meeting endpoints would accept, so the answer would be a
+    # success, not a 422, if the endpoint let the user in
+    response = client_for(user).request(method, url, json={"title": "Changed"})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "You must change your password before continuing"
+    )
+    db.refresh(meeting)
+    assert meeting.title == TITLE
     process_meeting_mock.assert_not_called()
 
 

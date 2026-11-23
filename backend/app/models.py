@@ -93,4 +93,10 @@ class User(Base):
     # so every token made before the change stops working (see
     # app/services/auth.py and get_current_user in app/dependencies.py)
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # True after the admin set the password: until the user changes it, every
+    # endpoint except /api/auth/me and /api/auth/password answers 403 (see
+    # get_current_user in app/dependencies.py)
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
