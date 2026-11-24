@@ -2,8 +2,8 @@
 
 The app started as a take-home assignment and is now being prepared for production
 as an internal company tool for user interviews with players and coaches (product
-feedback), used mainly by one colleague. Work is split into numbered GitHub issues
-(014 onwards), one branch per issue. Where an issue conflicts with what this file
+feedback), used mainly by one colleague. Work is split into GitHub issues, one
+branch per issue. Where an issue conflicts with what this file
 says about the app, the issue wins and this file is updated as part of the issue.
 
 ## What the app does now
@@ -44,7 +44,7 @@ A small web app with user accounts (see "Users and login" below):
   `Content-Length` of `POST /api/meetings` before the body is read, so also
   before the login: larger than `MAX_UPLOAD_MB` plus 1 MB for the other form
   fields is a 413, no `Content-Length` a 411. In production it is replaced by
-  uploading straight to Cloud Storage (033).
+  uploading straight to Cloud Storage.
 - The UI shows how far processing has got: uploading → upload finished →
   transcription → summary → done (or failed, with an error message).
 - Interviews list (title, interviewee, date, status, View button) and interview

@@ -4,7 +4,7 @@ FastAPI reads the whole multipart form (and writes the file to a temporary
 file on disk) before the endpoint runs, so before the login and the size are
 checked. Without this middleware anyone, even without logging in, could fill
 the disk with large requests. In production this is replaced by uploading
-straight to Cloud Storage (issue 033).
+straight to Cloud Storage.
 """
 
 from fastapi import status
