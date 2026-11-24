@@ -1,4 +1,5 @@
 import logging
+import math
 import subprocess
 from pathlib import Path
 
@@ -15,9 +16,16 @@ AUDIO_BITRATE = "64k"  # 64 kbit/s
 # The limit for ffmpeg itself comes from FFMPEG_TIMEOUT_SECONDS in .env
 PROBE_TIMEOUT_SECONDS = 30
 
+INVALID_VIDEO_MESSAGE = "The video file is corrupted or is not a valid video"
+
 
 class AudioExtractionError(Exception):
     """The audio could not be extracted; the message is safe to show to the user."""
+
+
+class InvalidVideoError(Exception):
+    """The video is too long or its length cannot be read; the message is safe
+    to show to the user."""
 
 
 def _run(command: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
@@ -80,9 +88,7 @@ def extract_audio(video_path: Path, audio_path: Path) -> None:
     )
     if probe.returncode != 0:
         logger.error("ffprobe failed for %s: %s", video_path, probe.stderr.strip())
-        raise AudioExtractionError(
-            "The video file is corrupted or is not a valid video"
-        )
+        raise AudioExtractionError(INVALID_VIDEO_MESSAGE)
     if not probe.stdout.strip():
         raise AudioExtractionError("The video has no audio track")
 
@@ -116,11 +122,13 @@ def extract_audio(video_path: Path, audio_path: Path) -> None:
         raise AudioExtractionError("Could not extract audio from the video")
 
 
-def get_audio_duration(audio_path: Path) -> float | None:
-    """Return the length of the audio file in seconds, or None if it is not known.
+def get_media_duration(path: Path) -> float | None:
+    """Return the length of a video or audio file in seconds, or None if it is
+    not known.
 
-    The length is only written to the log (see app/services/ai.py), so this
-    never raises: a failure must not stop the processing of the meeting.
+    This never raises: each caller decides what an unknown length means. The
+    length of the video is checked with check_video_length; the length of the
+    MP3 only goes to the log (see app/services/ai.py).
     """
     try:
         # Print only the duration of the whole file, as a bare number
@@ -130,21 +138,52 @@ def get_audio_duration(audio_path: Path) -> float | None:
                 "-v", "error",
                 "-show_entries", "format=duration",
                 "-of", "csv=p=0",
-                str(audio_path),
+                str(path),
             ],
             PROBE_TIMEOUT_SECONDS,
         )
     except AudioExtractionError as error:
-        logger.warning("Could not read the length of %s: %s", audio_path, error)
+        logger.warning("Could not read the length of %s: %s", path, error)
         return None
     if probe.returncode != 0:
-        logger.warning(
-            "ffprobe failed for %s: %s", audio_path, probe.stderr.strip()
-        )
+        logger.warning("ffprobe failed for %s: %s", path, probe.stderr.strip())
         return None
     # ffprobe prints "N/A" when it cannot tell the length
     try:
         return round(float(probe.stdout.strip()), 1)
     except ValueError:
-        logger.warning("ffprobe returned no length for %s", audio_path)
+        logger.warning("ffprobe returned no length for %s", path)
         return None
+
+
+def _format_minutes(minutes: int) -> str:
+    """Write a number of minutes for the user: "2 hours", "1 hour", "45 min"
+    or "2 h 14 min"."""
+    # divmod returns the whole hours and the minutes that are left
+    hours, rest = divmod(minutes, 60)
+    if rest == 0:
+        return f"{hours} hour" if hours == 1 else f"{hours} hours"
+    if hours == 0:
+        return f"{rest} min"
+    return f"{hours} h {rest} min"
+
+
+def check_video_length(seconds: float | None) -> None:
+    """Raise InvalidVideoError if the video is longer than MAX_VIDEO_MINUTES,
+    or if its length is not known (seconds is None).
+
+    It gets the length, not the file, so it runs without ffprobe: the caller
+    reads the length with get_media_duration.
+    """
+    if seconds is None:
+        # ffprobe could not read the file, so it is not a video ffmpeg can use
+        raise InvalidVideoError(INVALID_VIDEO_MESSAGE)
+    limit = settings.max_video_minutes
+    if seconds > limit * 60:
+        # Rounded up, so a video a few seconds over the limit is never shown
+        # as exactly as long as the limit
+        length = _format_minutes(math.ceil(seconds / 60))
+        raise InvalidVideoError(
+            f"The video is {length} long; "
+            f"the longest allowed is {_format_minutes(limit)}."
+        )

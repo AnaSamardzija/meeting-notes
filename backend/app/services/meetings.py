@@ -10,6 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Meeting, MeetingStatus, User, UserRole
+from app.services.audio import (
+    InvalidVideoError,
+    check_video_length,
+    get_media_duration,
+)
 from app.services.processing import IN_PROGRESS_STATUSES, reset_results
 from app.storage import ALLOWED_EXTENSIONS, FileTooLargeError, save_upload
 
@@ -141,8 +146,8 @@ def create_meeting(
     service does not depend on the web framework. The caller starts the
     processing. An empty title is stored as None, and the AI then writes one.
 
-    Raises UnsupportedMediaError, EmptyFileError, FileTooLargeError or
-    UploadSaveError.
+    Raises UnsupportedMediaError, EmptyFileError, FileTooLargeError,
+    InvalidVideoError (too long, or not a readable video) or UploadSaveError.
     """
     # Only the name itself, without any folders the client may have sent.
     # It is stored in the database and never used as a path on disk.
@@ -188,7 +193,11 @@ def create_meeting(
         # the cleanup never deletes a folder this call did not create.
         new_dir.mkdir(parents=True, exist_ok=False)
         meeting_dir = new_dir
-        save_upload(source, meeting_dir / stored_name, settings.max_upload_bytes)
+        video_path = meeting_dir / stored_name
+        save_upload(source, video_path, settings.max_upload_bytes)
+        # ffprobe can read the length only from the saved file. A video that
+        # is too long would cost too much in Gemini, so it is not kept
+        check_video_length(get_media_duration(video_path))
 
         # Relative to UPLOAD_DIR and always with "/", on Windows too
         meeting.file_path = f"{meeting.id}/{stored_name}"
@@ -197,9 +206,14 @@ def create_meeting(
         # The size was not known in advance, or it was wrong
         _discard_upload(db, meeting_dir)
         raise too_large from None
+    except InvalidVideoError:
+        # Its message is written for the user, so it is passed on as it is
+        _discard_upload(db, meeting_dir)
+        raise
     except (OSError, SQLAlchemyError):
-        # The user gets a short message; the real reason goes to the log
-        logger.exception("Could not save the upload %r", original_filename)
+        # The user gets a short message; the real reason goes to the log. The
+        # file name is not logged: it often holds the name of the interviewee
+        logger.exception("Could not save the upload of user %s", user_id)
         _discard_upload(db, meeting_dir)
         raise UploadSaveError("Could not save the uploaded file") from None
     except Exception:

@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 
+from app.services.audio import InvalidVideoError
 from app.services.auth import (
     EmailDomainNotAllowedError,
     EmailTakenError,
@@ -33,6 +34,8 @@ SERVICE_ERROR_STATUS_CODES: dict[type[Exception], int] = {
     EmptyFileError: status.HTTP_400_BAD_REQUEST,
     FileTooLargeError: status.HTTP_413_CONTENT_TOO_LARGE,
     UnsupportedMediaError: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+    # The file is a video by its name and type, but too long or not readable
+    InvalidVideoError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     UploadSaveError: status.HTTP_500_INTERNAL_SERVER_ERROR,
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
     EmailTakenError: status.HTTP_409_CONFLICT,

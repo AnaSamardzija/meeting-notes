@@ -66,7 +66,7 @@ from app.dependencies import ACCESS_TOKEN_COOKIE
 from app.main import app
 from app.models import Meeting, MeetingStatus, User, UserRole
 from app.routers import meetings as meetings_router
-from app.services import ai, processing
+from app.services import ai, meetings as meetings_service, processing
 from app.services.auth import create_access_token, hash_password
 
 
@@ -170,17 +170,23 @@ def ai_mocks(monkeypatch):
     """Replace the functions that call ffmpeg, ffprobe and Gemini, in every test.
 
     They are replaced in app.services.processing, because that is the module
-    that looks them up by name when process_meeting runs. A test sets what
-    they return (return_value) or raise (side_effect).
+    that looks them up by name when process_meeting runs. get_media_duration
+    is replaced in app.services.meetings too: the upload reads the length of
+    the video with ffprobe. A test sets what they return (return_value) or
+    raise (side_effect).
     """
     mocks = SimpleNamespace(
         extract_audio=Mock(),
-        get_audio_duration=Mock(return_value=98.5),
+        # Shorter than MAX_VIDEO_MINUTES, so the length check lets it through
+        get_media_duration=Mock(return_value=98.5),
         transcribe_audio=Mock(),
         analyze_transcript=Mock(),
     )
     for name, mock in vars(mocks).items():
         monkeypatch.setattr(processing, name, mock)
+    monkeypatch.setattr(
+        meetings_service, "get_media_duration", mocks.get_media_duration
+    )
     return mocks
 
 
