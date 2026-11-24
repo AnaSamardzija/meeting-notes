@@ -43,7 +43,8 @@ class UploadSaveError(Exception):
 
 
 class MeetingInProgressError(Exception):
-    """The meeting is being processed, so it cannot be started again."""
+    """The meeting is being processed, so it cannot be started again or
+    deleted."""
 
 
 def _visible_to(query: Select, user: User) -> Select:
@@ -120,6 +121,46 @@ def update_title(db: Session, meeting_id: int, user: User, title: str) -> Meetin
     meeting.title = title
     db.commit()
     return meeting
+
+
+def delete_meeting(db: Session, meeting_id: int, user: User) -> None:
+    """Delete the meeting and its folder on disk (the video and the MP3).
+
+    Raises MeetingNotFoundError, or MeetingInProgressError while the meeting
+    is being processed: its background task still needs the row and the
+    files.
+    """
+    # for_update: the same lock as in start_reprocessing, so a deletion and
+    # a "process again" of the same meeting cannot overlap. The one that
+    # comes second waits, then finds the meeting gone (404) or being
+    # processed (409)
+    meeting = get_meeting(db, meeting_id, user, for_update=True)
+    if meeting.status in IN_PROGRESS_STATUSES:
+        raise MeetingInProgressError(
+            "The meeting is being processed, so it cannot be deleted"
+        )
+
+    db.delete(meeting)
+    db.commit()
+
+    # The files go only after the row is gone. If they cannot be deleted
+    # (e.g. a file is locked on Windows), the meeting has still disappeared
+    # from the app: only a folder nobody uses is left on disk. The other way
+    # round, a failure could leave a meeting whose video is half deleted.
+    # The same folder as in create_meeting
+    meeting_dir = settings.upload_path / str(meeting_id)
+    try:
+        shutil.rmtree(meeting_dir)
+    except FileNotFoundError:
+        # Nothing to delete (e.g. the files were removed by hand)
+        pass
+    except OSError as error:
+        # Only the id: the names of the files can hold the interviewee's name
+        logger.warning(
+            "Meeting %s was deleted, but not its folder: %s",
+            meeting_id,
+            error.strerror,
+        )
 
 
 def _discard_upload(db: Session, meeting_dir: Path | None) -> None:

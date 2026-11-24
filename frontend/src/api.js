@@ -164,6 +164,12 @@ export async function updateMeeting(id, data) {
   return response.data
 }
 
+// Deletes the meeting with its video, transcript and summary; it cannot be
+// undone. A meeting that is being processed cannot be deleted (409).
+export async function deleteMeeting(id) {
+  await api.delete(`/api/meetings/${id}`)
+}
+
 // Returns the summary of a processed meeting in the shape of the edit form:
 // { name, role, location, takeaway, context, likes, dislikes, wants }, all of
 // them text. likes, dislikes and wants have one paragraph per item.

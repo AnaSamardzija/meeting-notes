@@ -1,11 +1,13 @@
-"""Tests of the meetings list, the meeting details, changing the title and
-processing again."""
+"""Tests of the meetings list, the meeting details, changing the title,
+processing again and deleting."""
 
 from datetime import datetime
+from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 
-from app.models import MeetingStatus
+from app.models import Meeting, MeetingStatus
 
 # Made-up results of a processed interview, in the shape of the JSON columns
 INTERVIEWEE = {"name": "Alex", "role": "U15 coach", "location": "Springfield"}
@@ -209,3 +211,57 @@ def test_processing_again_keeps_the_old_results_until_the_new_ones_are_ready(
     assert meeting.processed_at == datetime(2026, 10, 1, 9, 30)
     assert meeting.edited_at == datetime(2026, 10, 2, 8, 0)
     process_meeting_mock.assert_called_once_with(meeting.id, transcribe=transcribe)
+
+
+def _make_meeting_folder(upload_dir: Path, meeting_id: int) -> Path:
+    """Put made-up files where the upload and the processing keep them."""
+    folder = upload_dir / str(meeting_id)
+    folder.mkdir()
+    (folder / "original.mp4").write_bytes(b"not a real video")
+    (folder / "audio.mp3").write_bytes(b"not a real audio")
+    return folder
+
+
+def _meeting_exists(db, meeting_id: int) -> bool:
+    # A query, not db.get: db.get could answer from the session's memory
+    return db.scalar(select(Meeting.id).where(Meeting.id == meeting_id)) is not None
+
+
+@pytest.mark.parametrize(
+    "status", [MeetingStatus.DONE, MeetingStatus.FAILED], ids=["done", "failed"]
+)
+def test_deleting_removes_the_row_and_the_folder(
+    client, db, make_meeting, tmp_path, status
+):
+    # tmp_path is the upload folder of the test (see isolated_app)
+    meeting = make_meeting(status=status, transcript="Speaker 1: Hello.")
+    folder = _make_meeting_folder(tmp_path, meeting.id)
+
+    response = client.delete(f"/api/meetings/{meeting.id}")
+
+    assert response.status_code == 204
+    assert not _meeting_exists(db, meeting.id)
+    assert not folder.exists()
+
+
+@pytest.mark.parametrize(
+    "status",
+    [MeetingStatus.UPLOADED, MeetingStatus.TRANSCRIBING, MeetingStatus.SUMMARIZING],
+    ids=["uploaded", "transcribing", "summarizing"],
+)
+def test_deleting_is_refused_while_the_meeting_is_being_processed(
+    client, db, make_meeting, tmp_path, status
+):
+    meeting = make_meeting(status=status)
+    folder = _make_meeting_folder(tmp_path, meeting.id)
+
+    response = client.delete(f"/api/meetings/{meeting.id}")
+
+    # The background task still needs the row and the files
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "The meeting is being processed, so it cannot be deleted"
+    }
+    assert _meeting_exists(db, meeting.id)
+    assert (folder / "original.mp4").exists()
+    assert (folder / "audio.mp3").exists()

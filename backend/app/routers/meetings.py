@@ -61,6 +61,16 @@ def update_meeting(
     return meetings_service.update_title(db, meeting_id, user, data.title)
 
 
+# 204 No Content: the meeting is gone, so there is nothing to return
+@router.delete("/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_meeting(
+    meeting_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    meetings_service.delete_meeting(db, meeting_id, user)
+
+
 # The summary in the shape of the edit form; 409 until processing is done
 @router.get("/{meeting_id}/summary", response_model=SummaryForm)
 def get_summary(

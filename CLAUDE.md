@@ -90,6 +90,15 @@ A small web app with user accounts (see "Users and login" below):
   transcript as plain text. The button shows "Copied" for a moment, and an
   error message appears when the browser does not allow the clipboard (it
   works only on https or localhost).
+- An interview that is not being processed (`done` or `failed`) has a
+  "Delete" button, which asks for confirmation (`ConfirmDialog`: it cannot be
+  undone) and then goes back to the list. `DELETE /api/meetings/{id}`
+  (`delete_meeting` in `app/services/meetings.py`) answers 204, and 409 while
+  the interview is being processed (uploaded, transcribing, summarizing). It
+  locks the row like processing again, deletes it, and only after the commit
+  deletes the folder of the interview (`UPLOAD_DIR/<id>`, the video and the
+  MP3); a folder that cannot be deleted is only a warning in the log, and the
+  answer is still 204.
 - After every Gemini call whose answer came back (also a failed one, and on
   every processing again), `_log_usage` in `app/services/ai.py` writes one
   INFO log line: meeting id, step (`transcription` or `analysis`), model,
@@ -180,8 +189,8 @@ A small web app with user accounts (see "Users and login" below):
 - Interviews belong to users. All `/api/meetings` endpoints need a login (the
   router has `dependencies=[Depends(get_current_user)]`; 401 without a valid
   cookie). `meetings.user_id` (foreign key to `users`) is set at upload to the
-  user who uploaded. A user sees, edits and processes again only their own
-  interviews, the admin all of them: every service function that works on
+  user who uploaded. A user sees, edits, processes again and deletes only
+  their own interviews, the admin all of them: every service function that works on
   one interview gets it through `get_meeting(db, meeting_id, user)` in
   `app/services/meetings.py`, which filters in the SQL query, so another
   user's interview is a 404 exactly like one that does not exist. The
