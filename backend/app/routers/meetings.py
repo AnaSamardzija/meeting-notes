@@ -5,13 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models import User
+from app.models import MeetingStatus, User
 from app.schemas import (
     TITLE_MAX_LENGTH,
     MeetingDetail,
     MeetingListItem,
     MeetingRead,
     MeetingUpdate,
+    ProcessRequest,
     SummaryForm,
 )
 from app.services import meetings as meetings_service, summary as summary_service
@@ -117,9 +118,20 @@ def upload_meeting(
 def process_meeting_again(
     meeting_id: int,
     background_tasks: BackgroundTasks,
+    # The body is optional: a request without one is the same as
+    # {"transcribe": false}
+    data: ProcessRequest | None = None,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    meeting = meetings_service.start_reprocessing(db, meeting_id, user)
-    background_tasks.add_task(process_meeting, meeting.id)
+    meeting = meetings_service.start_reprocessing(
+        db, meeting_id, user, transcribe=data.transcribe if data else False
+    )
+    # The service has decided, and the status says what: transcribing for the
+    # whole processing, summarizing for a new summary only
+    background_tasks.add_task(
+        process_meeting,
+        meeting.id,
+        transcribe=meeting.status == MeetingStatus.TRANSCRIBING,
+    )
     return meeting

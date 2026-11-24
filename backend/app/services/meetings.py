@@ -15,7 +15,7 @@ from app.services.audio import (
     check_video_length,
     get_media_duration,
 )
-from app.services.processing import IN_PROGRESS_STATUSES, reset_results
+from app.services.processing import IN_PROGRESS_STATUSES
 from app.storage import ALLOWED_EXTENSIONS, FileTooLargeError, save_upload
 
 logger = logging.getLogger(__name__)
@@ -223,8 +223,17 @@ def create_meeting(
     return meeting
 
 
-def start_reprocessing(db: Session, meeting_id: int, user: User) -> Meeting:
-    """Clear the old results of the meeting and mark it as being processed.
+def start_reprocessing(
+    db: Session, meeting_id: int, user: User, transcribe: bool = False
+) -> Meeting:
+    """Mark the meeting as being processed again and return it.
+
+    A meeting with a transcript gets only a new summary from it, unless
+    transcribe is True; one without a transcript is always processed from the
+    audio. The status tells which: transcribing for the whole processing,
+    summarizing for the summary only. The old transcript and summary are kept
+    until the new ones are ready (see process_meeting), so the details show
+    them meanwhile and a failed processing does not lose them.
 
     The caller starts the processing itself. Raises MeetingNotFoundError, or
     MeetingInProgressError if the meeting is already being processed.
@@ -236,9 +245,14 @@ def start_reprocessing(db: Session, meeting_id: int, user: User) -> Meeting:
     if meeting.status in IN_PROGRESS_STATUSES:
         raise MeetingInProgressError("The meeting is already being processed")
 
-    # The old results are removed first, so the details do not show them while
-    # the new ones are being made
-    reset_results(meeting)
-    meeting.status = MeetingStatus.TRANSCRIBING
+    # A new transcript is never made without a new summary: the summary is
+    # written from the transcript
+    if transcribe or meeting.transcript is None:
+        meeting.status = MeetingStatus.TRANSCRIBING
+    else:
+        meeting.status = MeetingStatus.SUMMARIZING
+    # Only the message of an earlier failure is cleared; a new failure writes
+    # its own
+    meeting.error_message = None
     db.commit()
     return meeting

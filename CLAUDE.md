@@ -27,8 +27,8 @@ A small web app with user accounts (see "Users and login" below):
    feedback about other companies' tools goes to the context.
 4. All results are stored in the database (`interviewee` and `insights` are JSON
    columns, so the sections can change without a migration); a meeting can be
-   processed again, which keeps its title but writes a new summary over an
-   edited one.
+   processed again (see "Process again" below), which keeps its title but
+   writes a new summary over an edited one once the new summary is ready.
 
 - Limits of an upload: `MAX_UPLOAD_MB` (default 500) and `MAX_VIDEO_MINUTES`
   (default 120, because Gemini charges for every second of audio). The upload
@@ -37,8 +37,8 @@ A small web app with user accounts (see "Users and login" below):
   whose length cannot be read, is a 422 with a message for the user (e.g.
   "The video is 2 h 14 min long; the longest allowed is 2 hours."), which the
   upload form shows, and neither the file nor the row is kept. The processing
-  does the same check before ffmpeg and Gemini, so processing an older, longer
-  video again ends as failed with the same message.
+  does the same check before ffmpeg and Gemini, so transcribing an older,
+  longer video again ends as failed with the same message.
   `UploadSizeLimitMiddleware` (`app/upload_limit.py`, added before the CORS
   middleware so its answers have the CORS headers) checks the
   `Content-Length` of `POST /api/meetings` before the body is read, so also
@@ -67,8 +67,22 @@ A small web app with user accounts (see "Users and login" below):
 - A processed interview has a "Process again" button. It and "Try again"
   always ask for confirmation first (`ConfirmDialog`), because processing uses
   Gemini tokens; when the summary has been edited, the window also warns that
-  the changes will be lost. Processing again clears `edited_at`, and the
-  details show "Edited" with its date while it is set.
+  the changes will be lost once the new summary is ready.
+  `POST /api/meetings/{id}/process` takes an optional body
+  `{"transcribe": true}`. An interview with a transcript gets by default only
+  a new summary from it (no ffmpeg, no transcription; `start_reprocessing`
+  sets `summarizing` at once); one without a transcript, or with
+  `transcribe` true, is processed from the audio (`transcribing`). A new
+  transcript is never made without a new summary. Nothing is cleared in
+  advance: the new transcript replaces the old one in the commit that moves
+  the interview to `summarizing`, and the new summary replaces the old one
+  (and `edited_at` is cleared) in the commit that moves it to `done`. A failed
+  processing leaves the last stored transcript and summary, which the details
+  show under the error message; meanwhile the details show the old summary,
+  which cannot be edited (409). For an interview with a transcript the window
+  offers "New summary only" (selected) and "New transcript and summary";
+  without one there is no choice. The details show "Edited" with its date
+  while `edited_at` is set.
 - A processed interview has "Copy summary" and "Copy transcript" buttons
   (`frontend/src/summaryCopy.js`, `CopyButton`). The summary is copied as it
   is shown (with the user's changes, without empty sections), both as HTML

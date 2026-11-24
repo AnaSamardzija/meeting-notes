@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router'
 import { getErrorMessage, getMeeting, reprocessMeeting } from '../api'
 import ConfirmDialog from './ConfirmDialog'
@@ -30,6 +30,12 @@ function MeetingDetails({ meetingId }) {
   const [reprocessError, setReprocessError] = useState(null)
   // true while the window that asks to confirm the processing is open
   const [confirmingReprocess, setConfirmingReprocess] = useState(false)
+  // The choice in that window: true for "New transcript and summary", false
+  // for "New summary only"
+  const [newTranscript, setNewTranscript] = useState(false)
+  // A unique prefix for the ids of the radio buttons, which their labels
+  // point to
+  const choiceId = useId()
 
   // false when the meeting is not loaded yet or is not being processed
   const inProgress = meeting !== null && isInProgress(meeting.status)
@@ -37,6 +43,11 @@ function MeetingDetails({ meetingId }) {
   // For the text of the window that asks to confirm the processing
   const isFailed = meeting?.status === 'failed'
   const isEdited = Boolean(meeting?.edited_at)
+  // Only a meeting with a transcript can get a new summary alone; one without
+  // is always transcribed, so the window then has no choice
+  const hasTranscript = Boolean(meeting?.transcript)
+  // A failed meeting can have a summary too: the last one that was made
+  const hasSummary = Boolean(meeting?.insights)
 
   useEffect(() => {
     // Set by the cleanup below when a newer request has started (or the
@@ -101,22 +112,24 @@ function MeetingDetails({ meetingId }) {
 
   // The "Try again" button of a failed meeting and the "Process again" button
   // of a processed one. Both only open the window that asks to confirm: every
-  // processing uses Gemini tokens, and it writes a new summary over the old
-  // one, even an edited one.
+  // processing uses Gemini tokens, and its new summary replaces the old one,
+  // even an edited one.
   function handleReprocessClick() {
+    // The cheaper choice is selected every time the window opens
+    setNewTranscript(false)
     setConfirmingReprocess(true)
   }
 
   function handleReprocessConfirmed() {
     setConfirmingReprocess(false)
-    reprocess()
+    reprocess(hasTranscript && newTranscript)
   }
 
-  async function reprocess() {
+  async function reprocess(transcribe) {
     setReprocessing(true)
     setReprocessError(null)
     try {
-      await reprocessMeeting(meetingId)
+      await reprocessMeeting(meetingId, { transcribe })
     } catch (error) {
       // 409 means the meeting is already being processed (e.g. it was started
       // from another tab), so the details are only loaded again
@@ -220,9 +233,10 @@ function MeetingDetails({ meetingId }) {
         )}
       </div>
 
-      {/* The text depends on the meeting: a failed one is tried again, a
-          processed one loses its summary, and an edited one loses the
-          changes of the user too (then the button is red) */}
+      {/* The text depends on the meeting: one with a transcript offers a new
+          summary only or a new transcript too, and one with a summary keeps
+          it until the new one is ready. An edited one loses the changes of
+          the user when the new summary arrives (then the button is red) */}
       <ConfirmDialog
         open={confirmingReprocess}
         title={isFailed ? 'Try processing again?' : 'Process the interview again?'}
@@ -232,22 +246,67 @@ function MeetingDetails({ meetingId }) {
         onCancel={() => setConfirmingReprocess(false)}
       >
         <div className="vstack gap-2">
-          <p className="mb-0">
-            Gemini transcribes and summarizes the interview again. This uses
-            tokens again, which costs money.
-          </p>
-          {isEdited ? (
-            <p className="mb-0">
-              The summary has been edited. The new AI summary replaces your
-              changes, and they cannot be restored.
-            </p>
+          {hasTranscript ? (
+            // Controlled radio buttons: React keeps the choice in
+            // newTranscript, checked shows it and onChange changes it
+            <fieldset>
+              <legend className="visually-hidden">What to make</legend>
+              <div className="form-check">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  name={`${choiceId}-choice`}
+                  id={`${choiceId}-summary`}
+                  checked={!newTranscript}
+                  onChange={() => setNewTranscript(false)}
+                />
+                <label className="form-check-label" htmlFor={`${choiceId}-summary`}>
+                  New summary only
+                </label>
+                <div className="form-text mt-0">
+                  Gemini writes a new summary from the current transcript.
+                </div>
+              </div>
+              <div className="form-check mt-2">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  name={`${choiceId}-choice`}
+                  id={`${choiceId}-transcript`}
+                  checked={newTranscript}
+                  onChange={() => setNewTranscript(true)}
+                />
+                <label
+                  className="form-check-label"
+                  htmlFor={`${choiceId}-transcript`}
+                >
+                  New transcript and summary
+                </label>
+                <div className="form-text mt-0">
+                  Takes longer, uses many more tokens and replaces the current
+                  transcript.
+                </div>
+              </div>
+            </fieldset>
           ) : (
-            !isFailed && (
-              <p className="mb-0">
-                The new summary replaces the current one.
-              </p>
-            )
+            <p className="mb-0">
+              Gemini transcribes and summarizes the interview.
+            </p>
           )}
+          <p className="mb-0">This uses Gemini tokens, which costs money.</p>
+          {hasSummary &&
+            (isEdited ? (
+              <p className="mb-0">
+                The summary has been edited. When the new summary is ready, it
+                replaces your changes, and they cannot be restored. If the
+                processing fails, your changes are kept.
+              </p>
+            ) : (
+              <p className="mb-0">
+                The current summary stays until the new one is ready, and it is
+                kept if the processing fails.
+              </p>
+            ))}
         </div>
       </ConfirmDialog>
     </div>
