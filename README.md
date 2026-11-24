@@ -81,6 +81,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 | `ENABLE_DOCS`            | `false`                 | Swagger at `/docs` when `true`; keep off in production    |
 | `UPLOAD_DIR`             | `uploads`               | Folder for uploaded videos, relative to `backend/`        |
 | `MAX_UPLOAD_MB`          | `500`                   | Largest video that can be uploaded, in megabytes          |
+| `MAX_VIDEO_MINUTES`      | `120`                   | Longest video that is accepted and processed, in minutes  |
 | `FFMPEG_TIMEOUT_SECONDS` | `600`                   | Longest time ffmpeg may take on one video, in seconds     |
 | `GEMINI_API_KEY`         | required                | Google Gemini API key                                     |
 | `GEMINI_MODEL`           | `gemini-3.8-flash`      | Gemini model for the transcription and the summary        |

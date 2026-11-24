@@ -9,6 +9,7 @@ from app.config import settings
 from app.error_handlers import register_error_handlers
 from app.routers import admin, auth, health, meetings
 from app.services.processing import fail_interrupted_meetings
+from app.upload_limit import UploadSizeLimitMiddleware
 
 # The base configuration for every logger of the application. The loggers in
 # the other modules (logging.getLogger(__name__)) have no handler of their own:
@@ -48,6 +49,13 @@ app = FastAPI(
     redoc_url="/redoc" if settings.enable_docs else None,
     openapi_url="/openapi.json" if settings.enable_docs else None,
 )
+
+# Refuses an upload that is too large before its body is read (see
+# app/upload_limit.py). Added before CORSMiddleware on purpose: the middleware
+# added last is the outermost one, so CORS wraps this one, and its 413 and 411
+# answers get the CORS headers too. Without them the browser would hide the
+# answer from the frontend, which would show "Backend is not available".
+app.add_middleware(UploadSizeLimitMiddleware)
 
 # allow_credentials: the frontend runs on another origin (another port in
 # development) and sends the login cookie with every request. Without it, the

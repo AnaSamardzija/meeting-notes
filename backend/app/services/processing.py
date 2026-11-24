@@ -10,8 +10,10 @@ from app.models import Meeting, MeetingStatus, utc_now
 from app.services.ai import AIServiceError, analyze_transcript, transcribe_audio
 from app.services.audio import (
     AudioExtractionError,
+    InvalidVideoError,
+    check_video_length,
     extract_audio,
-    get_audio_duration,
+    get_media_duration,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,10 +90,15 @@ def process_meeting(meeting_id: int) -> None:
             meeting.status = MeetingStatus.TRANSCRIBING
             db.commit()
 
+            # The same check as at upload, before anything is sent to Gemini.
+            # It matters when an older video, uploaded before the limit or
+            # with a higher one, is processed again
+            check_video_length(get_media_duration(video_path))
+
             extract_audio(video_path, audio_path)
             # The id and the length of the recording are only for the log
             # line of each Gemini call (see _log_usage in app/services/ai.py)
-            audio_seconds = get_audio_duration(audio_path)
+            audio_seconds = get_media_duration(audio_path)
             transcript = transcribe_audio(
                 audio_path, meeting_id=meeting_id, audio_seconds=audio_seconds
             )
@@ -124,8 +131,8 @@ def process_meeting(meeting_id: int) -> None:
             meeting.status = MeetingStatus.DONE
             meeting.processed_at = utc_now()
             db.commit()
-        except (AudioExtractionError, AIServiceError) as error:
-            # The messages of these two errors are written for the user
+        except (InvalidVideoError, AudioExtractionError, AIServiceError) as error:
+            # The messages of these errors are written for the user
             _mark_failed(db, meeting, meeting_id, str(error))
         except Exception:
             # Anything else is a bug or a database problem: the details go to

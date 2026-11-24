@@ -30,6 +30,21 @@ A small web app with user accounts (see "Users and login" below):
    processed again, which keeps its title but writes a new summary over an
    edited one.
 
+- Limits of an upload: `MAX_UPLOAD_MB` (default 500) and `MAX_VIDEO_MINUTES`
+  (default 120, because Gemini charges for every second of audio). The upload
+  reads the length of the saved video with ffprobe (`get_media_duration` and
+  `check_video_length` in `app/services/audio.py`): a longer video, or one
+  whose length cannot be read, is a 422 with a message for the user (e.g.
+  "The video is 2 h 14 min long; the longest allowed is 2 hours."), which the
+  upload form shows, and neither the file nor the row is kept. The processing
+  does the same check before ffmpeg and Gemini, so processing an older, longer
+  video again ends as failed with the same message.
+  `UploadSizeLimitMiddleware` (`app/upload_limit.py`, added before the CORS
+  middleware so its answers have the CORS headers) checks the
+  `Content-Length` of `POST /api/meetings` before the body is read, so also
+  before the login: larger than `MAX_UPLOAD_MB` plus 1 MB for the other form
+  fields is a 413, no `Content-Length` a 411. In production it is replaced by
+  uploading straight to Cloud Storage (033).
 - The UI shows how far processing has got: uploading → upload finished →
   transcription → summary → done (or failed, with an error message).
 - Interviews list (title, interviewee, date, status, View button) and interview
@@ -66,7 +81,7 @@ A small web app with user accounts (see "Users and login" below):
   INFO log line: meeting id, step (`transcription` or `analysis`), model,
   status, duration of the call in seconds, input, output and thought tokens
   (from `usage` of the Interactions API) and, for the transcription, the
-  length of the MP3 in seconds (`get_audio_duration`, ffprobe). The numbers
+  length of the MP3 in seconds (`get_media_duration`, ffprobe). The numbers
   are in the text and as separate fields of the record (`extra`). No content
   of the interview goes to the log, no price is computed (the exact cost is in
   the billing of the Google Cloud project), and nothing is stored in the

@@ -1,10 +1,14 @@
 """Tests of process_meeting, the background processing of one meeting.
 
 process_meeting is called directly, the way the background task calls it.
-extract_audio, transcribe_audio and analyze_transcript are mocks (see
-ai_mocks in conftest.py), so ffmpeg and Gemini are never called.
+get_media_duration, extract_audio, transcribe_audio and analyze_transcript
+are mocks (see ai_mocks in conftest.py), so ffprobe, ffmpeg and Gemini are
+never called.
 """
 
+from unittest.mock import call
+
+from app.config import settings
 from app.models import MeetingStatus
 from app.schemas import InsightItem, Insights, Interviewee
 from app.services.ai import AIServiceError, MeetingAnalysis
@@ -53,7 +57,11 @@ def test_process_meeting_stores_the_transcript_and_the_analysis(
     video_path = tmp_path / "1" / "original.mp4"
     audio_path = tmp_path / "1" / "audio.mp3"
     ai_mocks.extract_audio.assert_called_once_with(video_path, audio_path)
-    ai_mocks.get_audio_duration.assert_called_once_with(audio_path)
+    # The length of the video for the check, then of the MP3 for the log
+    assert ai_mocks.get_media_duration.call_args_list == [
+        call(video_path),
+        call(audio_path),
+    ]
     ai_mocks.transcribe_audio.assert_called_once_with(
         audio_path, meeting_id=meeting.id, audio_seconds=98.5
     )
@@ -137,6 +145,30 @@ def test_process_meeting_stores_the_message_of_an_ai_error(
     )
     assert meeting.transcript is None
     assert meeting.processed_at is None
+    ai_mocks.analyze_transcript.assert_not_called()
+
+
+def test_process_meeting_fails_a_video_that_is_too_long_without_calling_gemini(
+    db, make_meeting, ai_mocks, monkeypatch
+):
+    monkeypatch.setattr(settings, "max_video_minutes", 120)
+    # Processed again (start_reprocessing leaves it in this status): an older
+    # video, uploaded before the limit, or with a higher one
+    meeting = make_meeting(status=MeetingStatus.TRANSCRIBING)
+    # 2 h 14 min
+    ai_mocks.get_media_duration.return_value = 2 * 60 * 60 + 14 * 60
+
+    process_meeting(meeting.id)
+
+    db.refresh(meeting)
+    assert meeting.status == MeetingStatus.FAILED
+    assert meeting.error_message == (
+        "The video is 2 h 14 min long; the longest allowed is 2 hours."
+    )
+    assert meeting.transcript is None
+    # Stopped before ffmpeg and before anything was sent to Gemini
+    ai_mocks.extract_audio.assert_not_called()
+    ai_mocks.transcribe_audio.assert_not_called()
     ai_mocks.analyze_transcript.assert_not_called()
 
 

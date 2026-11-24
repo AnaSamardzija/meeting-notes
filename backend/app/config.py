@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Uploads. A relative UPLOAD_DIR is resolved from the backend/ folder
     upload_dir: Path = Path("uploads")
     max_upload_mb: int = 500
+    # Longest video that is processed. Gemini charges for every second of
+    # audio, so a longer recording is refused at upload and in the processing
+    max_video_minutes: int = Field(default=120, gt=0)
 
     # Longest time ffmpeg may take to extract the audio from one video
     ffmpeg_timeout_seconds: int = 600
