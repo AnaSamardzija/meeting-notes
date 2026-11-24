@@ -34,21 +34,6 @@ UNEXPECTED_ERROR_MESSAGE = "An unexpected error occurred while processing the me
 INTERRUPTED_MESSAGE = "Processing was interrupted because the server was restarted"
 
 
-def reset_results(meeting: Meeting) -> None:
-    """Clear everything a previous run of the processing left on the meeting.
-
-    The title is kept: it may have been set by the user, and the AI writes one
-    only when there is none. The caller commits.
-    """
-    meeting.transcript = None
-    meeting.interviewee = None
-    meeting.insights = None
-    meeting.error_message = None
-    meeting.processed_at = None
-    # The new summary is written by the AI, so it is no longer an edited one
-    meeting.edited_at = None
-
-
 def _mark_failed(db: Session, meeting: Meeting, meeting_id: int, message: str) -> None:
     """Store the failed status and the reason on the meeting.
 
@@ -67,13 +52,22 @@ def _mark_failed(db: Session, meeting: Meeting, meeting_id: int, message: str) -
         logger.exception("Could not mark meeting %s as failed", meeting_id)
 
 
-def process_meeting(meeting_id: int) -> None:
+def process_meeting(meeting_id: int, transcribe: bool = True) -> None:
     """Extract the audio, transcribe it and analyze the transcript.
+
+    With transcribe=False only the analysis runs, on the transcript the
+    meeting already has: no ffmpeg and no transcription, which cost the most
+    tokens. start_reprocessing (app/services/meetings.py) decides this.
 
     Runs as a background task, after the response has been sent. The session
     of the request is closed by then, so this function gets only the id and
     opens a session of its own. It never raises: every error ends up as the
     failed status and an error message on the meeting.
+
+    The old results are never cleared in advance: each new result replaces the
+    old one in the same commit that moves the meeting to the next status. A
+    failed step is rolled back (see _mark_failed), so the meeting keeps the
+    last transcript and summary that were stored.
     """
     with SessionLocal() as db:
         meeting = db.get(Meeting, meeting_id)
@@ -84,30 +78,36 @@ def process_meeting(meeting_id: int) -> None:
         video_path = settings.upload_path / meeting.file_path
         audio_path = video_path.with_name(AUDIO_FILENAME)
         try:
-            # Every status is committed at once, so the frontend sees it while
-            # the slow step that follows is still running. The commit also
-            # gives the connection back to the pool for that time.
-            meeting.status = MeetingStatus.TRANSCRIBING
-            db.commit()
+            if transcribe:
+                # Every status is committed at once, so the frontend sees it
+                # while the slow step that follows is still running. The
+                # commit also gives the connection back to the pool for that
+                # time.
+                meeting.status = MeetingStatus.TRANSCRIBING
+                db.commit()
 
-            # The same check as at upload, before anything is sent to Gemini.
-            # It matters when an older video, uploaded before the limit or
-            # with a higher one, is processed again
-            check_video_length(get_media_duration(video_path))
+                # The same check as at upload, before anything is sent to
+                # Gemini. It matters when an older video, uploaded before the
+                # limit or with a higher one, is processed again
+                check_video_length(get_media_duration(video_path))
 
-            extract_audio(video_path, audio_path)
-            # The id and the length of the recording are only for the log
-            # line of each Gemini call (see _log_usage in app/services/ai.py)
-            audio_seconds = get_media_duration(audio_path)
-            transcript = transcribe_audio(
-                audio_path, meeting_id=meeting_id, audio_seconds=audio_seconds
-            )
+                extract_audio(video_path, audio_path)
+                # The id and the length of the recording are only for the log
+                # line of each Gemini call (see _log_usage in app/services/ai.py)
+                audio_seconds = get_media_duration(audio_path)
+                transcript = transcribe_audio(
+                    audio_path, meeting_id=meeting_id, audio_seconds=audio_seconds
+                )
 
-            # The transcript is saved together with the new status, so it is
-            # kept even if the analysis fails
-            meeting.transcript = transcript
-            meeting.status = MeetingStatus.SUMMARIZING
-            db.commit()
+                # The new transcript replaces the old one together with the
+                # new status, so it is kept even if the analysis fails (and
+                # "Try again" then needs only a new summary)
+                meeting.transcript = transcript
+                meeting.status = MeetingStatus.SUMMARIZING
+                db.commit()
+            else:
+                # start_reprocessing has already set the summarizing status
+                transcript = meeting.transcript
 
             analysis = analyze_transcript(transcript, meeting_id=meeting_id)
 
@@ -125,9 +125,13 @@ def process_meeting(meeting_id: int) -> None:
                 .execution_options(synchronize_session=False)
             )
             # model_dump turns the Pydantic objects into plain dicts, which
-            # the JSON columns can store
+            # the JSON columns can store. The new summary replaces the old one
+            # only here, in the same commit as the done status
             meeting.interviewee = analysis.interviewee.model_dump()
             meeting.insights = analysis.insights.model_dump()
+            # The summary is the AI's again, so it is no longer an edited one
+            meeting.edited_at = None
+            meeting.error_message = None
             meeting.status = MeetingStatus.DONE
             meeting.processed_at = utc_now()
             db.commit()

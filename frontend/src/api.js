@@ -149,8 +149,11 @@ export async function getMeeting(id) {
 
 // Starts the processing of the meeting again and returns the meeting with its
 // new status. The backend answers at once; the processing runs after that.
-export async function reprocessMeeting(id) {
-  const response = await api.post(`/api/meetings/${id}/process`)
+// transcribe: true for a new transcript and a new summary; false for a new
+// summary from the current transcript (a meeting without one is always
+// transcribed).
+export async function reprocessMeeting(id, { transcribe = false } = {}) {
+  const response = await api.post(`/api/meetings/${id}/process`, { transcribe })
   return response.data
 }
 

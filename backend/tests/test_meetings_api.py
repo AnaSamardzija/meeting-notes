@@ -155,27 +155,57 @@ def test_processing_again_is_refused_while_the_meeting_is_being_processed(
     process_meeting_mock.assert_not_called()
 
 
-def test_processing_again_clears_the_old_results_but_keeps_the_title(
-    client, db, make_meeting, process_meeting_mock
+OLD_TRANSCRIPT = "Speaker 1: How do you plan your sessions?\nAlex: In a notebook."
+
+
+@pytest.mark.parametrize(
+    ("transcript", "body", "expected_status", "transcribe"),
+    [
+        # A meeting with a transcript gets only a new summary by default
+        (OLD_TRANSCRIPT, None, MeetingStatus.SUMMARIZING, False),
+        (OLD_TRANSCRIPT, {"transcribe": False}, MeetingStatus.SUMMARIZING, False),
+        # A new transcript only when it is asked for...
+        (OLD_TRANSCRIPT, {"transcribe": True}, MeetingStatus.TRANSCRIBING, True),
+        # ...or when there is none (e.g. the transcription failed)
+        (None, None, MeetingStatus.TRANSCRIBING, True),
+    ],
+    ids=["summary only", "transcribe false", "transcribe true", "no transcript"],
+)
+def test_processing_again_keeps_the_old_results_until_the_new_ones_are_ready(
+    client,
+    db,
+    make_meeting,
+    process_meeting_mock,
+    transcript,
+    body,
+    expected_status,
+    transcribe,
 ):
     meeting = make_meeting(
+        status=MeetingStatus.FAILED,
+        error_message="The Gemini usage limit has been reached. Try again later.",
         title="Youth coach on planning training sessions",
-        transcript="Speaker 1: How do you plan your sessions?\nAlex: In a notebook.",
+        transcript=transcript,
         interviewee=INTERVIEWEE,
         insights=INSIGHTS,
         processed_at=datetime(2026, 10, 1, 9, 30),
+        edited_at=datetime(2026, 10, 2, 8, 0),
     )
 
-    response = client.post(f"/api/meetings/{meeting.id}/process")
+    response = client.post(f"/api/meetings/{meeting.id}/process", json=body)
 
     assert response.status_code == 202
-    assert response.json()["status"] == "transcribing"
+    assert response.json()["status"] == expected_status.value
     db.refresh(meeting)
-    assert meeting.status == MeetingStatus.TRANSCRIBING
-    # The title may have been set by the user, so it is never cleared
+    assert meeting.status == expected_status
+    # Only the message of the earlier failure is cleared
+    assert meeting.error_message is None
+    # Nothing else is cleared: if the processing fails, the meeting keeps
+    # its transcript, its summary and the user's changes
     assert meeting.title == "Youth coach on planning training sessions"
-    assert meeting.transcript is None
-    assert meeting.interviewee is None
-    assert meeting.insights is None
-    assert meeting.processed_at is None
-    process_meeting_mock.assert_called_once_with(meeting.id)
+    assert meeting.transcript == transcript
+    assert meeting.interviewee == INTERVIEWEE
+    assert meeting.insights == INSIGHTS
+    assert meeting.processed_at == datetime(2026, 10, 1, 9, 30)
+    assert meeting.edited_at == datetime(2026, 10, 2, 8, 0)
+    process_meeting_mock.assert_called_once_with(meeting.id, transcribe=transcribe)

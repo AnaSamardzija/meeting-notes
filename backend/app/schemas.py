@@ -98,6 +98,14 @@ class MeetingUpdate(BaseModel):
     title: Title
 
 
+class ProcessRequest(BaseModel):
+    """The optional body of POST /api/meetings/{id}/process. transcribe=True
+    asks for a new transcript (and a new summary from it); by default a
+    meeting that has a transcript gets only a new summary."""
+
+    transcribe: bool = False
+
+
 class SummaryForm(BaseModel):
     """The summary as the user edits it: what GET /api/meetings/{id}/summary
     returns and PUT expects, the whole summary at once.

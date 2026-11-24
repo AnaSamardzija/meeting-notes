@@ -6,7 +6,10 @@ are mocks (see ai_mocks in conftest.py), so ffprobe, ffmpeg and Gemini are
 never called.
 """
 
+from datetime import datetime
 from unittest.mock import call
+
+import pytest
 
 from app.config import settings
 from app.models import MeetingStatus
@@ -190,3 +193,128 @@ def test_process_meeting_hides_the_details_of_an_unexpected_error(
     assert meeting.title is None
     assert meeting.interviewee is None
     assert meeting.insights is None
+
+
+# The results an earlier processing left on the meeting, which the user has
+# edited since. Made up, like everything above
+OLD_TRANSCRIPT = "Speaker 1: What do you use for training?\nAlex: Mostly paper."
+OLD_INTERVIEWEE = {"name": "Alex", "role": "Coach", "location": None}
+OLD_INSIGHTS = {
+    "takeaway": "Edited by the user.",
+    "context": "Alex plans on paper.",
+    "likes": [],
+    "dislikes": [],
+    "wants": [],
+}
+EDITED_AT = datetime(2026, 10, 2, 8, 0)
+
+
+@pytest.fixture
+def processed_meeting(make_meeting):
+    """Return a function that stores a processed and edited meeting in the
+    status start_reprocessing leaves it in."""
+
+    def _processed_meeting(status):
+        return make_meeting(
+            status=status,
+            title="Interview with Alex",
+            transcript=OLD_TRANSCRIPT,
+            interviewee=OLD_INTERVIEWEE,
+            insights=OLD_INSIGHTS,
+            processed_at=datetime(2026, 10, 1, 9, 30),
+            edited_at=EDITED_AT,
+        )
+
+    return _processed_meeting
+
+
+def test_a_new_summary_only_does_not_transcribe_and_replaces_the_summary(
+    db, processed_meeting, ai_mocks
+):
+    meeting = processed_meeting(MeetingStatus.SUMMARIZING)
+    ai_mocks.analyze_transcript.return_value = ANALYSIS
+
+    process_meeting(meeting.id, transcribe=False)
+
+    # No ffprobe, ffmpeg or transcription: the summary is made from the
+    # transcript the meeting already has
+    ai_mocks.get_media_duration.assert_not_called()
+    ai_mocks.extract_audio.assert_not_called()
+    ai_mocks.transcribe_audio.assert_not_called()
+    ai_mocks.analyze_transcript.assert_called_once_with(
+        OLD_TRANSCRIPT, meeting_id=meeting.id
+    )
+    db.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE
+    assert meeting.transcript == OLD_TRANSCRIPT
+    assert meeting.insights == ANALYSIS.insights.model_dump()
+    assert meeting.interviewee == ANALYSIS.interviewee.model_dump()
+    # The summary is the AI's again
+    assert meeting.edited_at is None
+    assert meeting.processed_at > datetime(2026, 10, 1, 9, 30)
+    # The meeting has a title, so the AI title is not used
+    assert meeting.title == "Interview with Alex"
+
+
+def test_a_failed_new_summary_keeps_the_transcript_the_summary_and_the_changes(
+    db, processed_meeting, ai_mocks
+):
+    meeting = processed_meeting(MeetingStatus.SUMMARIZING)
+    ai_mocks.analyze_transcript.side_effect = AIServiceError(
+        "The Gemini usage limit has been reached. Try again later."
+    )
+
+    process_meeting(meeting.id, transcribe=False)
+
+    db.refresh(meeting)
+    assert meeting.status == MeetingStatus.FAILED
+    assert meeting.error_message == (
+        "The Gemini usage limit has been reached. Try again later."
+    )
+    assert meeting.transcript == OLD_TRANSCRIPT
+    assert meeting.interviewee == OLD_INTERVIEWEE
+    assert meeting.insights == OLD_INSIGHTS
+    assert meeting.edited_at == EDITED_AT
+    assert meeting.processed_at == datetime(2026, 10, 1, 9, 30)
+
+
+def test_a_new_transcript_replaces_the_transcript_and_the_summary(
+    db, processed_meeting, ai_mocks
+):
+    meeting = processed_meeting(MeetingStatus.TRANSCRIBING)
+    ai_mocks.transcribe_audio.return_value = TRANSCRIPT
+    ai_mocks.analyze_transcript.return_value = ANALYSIS
+
+    process_meeting(meeting.id, transcribe=True)
+
+    ai_mocks.transcribe_audio.assert_called_once()
+    # The summary is made from the new transcript
+    ai_mocks.analyze_transcript.assert_called_once_with(
+        TRANSCRIPT, meeting_id=meeting.id
+    )
+    db.refresh(meeting)
+    assert meeting.status == MeetingStatus.DONE
+    assert meeting.transcript == TRANSCRIPT
+    assert meeting.insights == ANALYSIS.insights.model_dump()
+    assert meeting.edited_at is None
+
+
+def test_a_new_transcript_is_kept_when_the_new_summary_fails(
+    db, processed_meeting, ai_mocks
+):
+    meeting = processed_meeting(MeetingStatus.TRANSCRIBING)
+    ai_mocks.transcribe_audio.return_value = TRANSCRIPT
+    ai_mocks.analyze_transcript.side_effect = AIServiceError(
+        "The Gemini usage limit has been reached. Try again later."
+    )
+
+    process_meeting(meeting.id, transcribe=True)
+
+    db.refresh(meeting)
+    assert meeting.status == MeetingStatus.FAILED
+    # The transcription was paid for, so its result is kept: "Try again" then
+    # makes only a new summary. The old summary stays until a new one is ready
+    assert meeting.transcript == TRANSCRIPT
+    assert meeting.interviewee == OLD_INTERVIEWEE
+    assert meeting.insights == OLD_INSIGHTS
+    assert meeting.edited_at == EDITED_AT
