@@ -4,9 +4,10 @@ own, the admin all of them."""
 import re
 
 import pytest
+from sqlalchemy import select
 
 from app.main import app
-from app.models import MeetingStatus, UserRole
+from app.models import Meeting, MeetingStatus, UserRole
 
 # The only endpoints that can be used without logging in. Every other
 # endpoint, also one added later, must answer 401 without the login cookie.
@@ -132,8 +133,9 @@ SUMMARY_FORM = {
         ("GET", "/api/meetings/{id}/summary", None),
         ("PUT", "/api/meetings/{id}/summary", SUMMARY_FORM),
         ("POST", "/api/meetings/{id}/process", None),
+        ("DELETE", "/api/meetings/{id}", None),
     ],
-    ids=["details", "title", "summary form", "edit summary", "process again"],
+    ids=["details", "title", "summary form", "edit summary", "process again", "delete"],
 )
 def test_the_meeting_of_another_user_looks_like_one_that_does_not_exist(
     client, db, make_meeting, make_user, process_meeting_mock, method, path, body
@@ -192,3 +194,21 @@ def test_the_admin_sees_and_opens_the_meetings_of_every_user(
 
     assert [row["id"] for row in listed.json()] == [meeting.id]
     assert details.status_code == 200
+
+
+def test_the_admin_can_delete_the_meeting_of_any_user(
+    client_for, db, make_meeting, make_user, tmp_path
+):
+    admin = make_user(email="admin@example.com", role=UserRole.ADMIN)
+    # Owned by owner, a regular user
+    meeting = make_meeting()
+    # tmp_path is the upload folder of the test (see isolated_app)
+    folder = tmp_path / str(meeting.id)
+    folder.mkdir()
+    (folder / "original.mp4").write_bytes(b"not a real video")
+
+    response = client_for(admin).delete(f"/api/meetings/{meeting.id}")
+
+    assert response.status_code == 204
+    assert db.scalar(select(Meeting.id).where(Meeting.id == meeting.id)) is None
+    assert not folder.exists()

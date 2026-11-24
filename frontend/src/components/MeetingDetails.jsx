@@ -1,6 +1,11 @@
 import { useEffect, useId, useState } from 'react'
-import { Link } from 'react-router'
-import { getErrorMessage, getMeeting, reprocessMeeting } from '../api'
+import { Link, useNavigate } from 'react-router'
+import {
+  deleteMeeting,
+  getErrorMessage,
+  getMeeting,
+  reprocessMeeting,
+} from '../api'
 import ConfirmDialog from './ConfirmDialog'
 import ErrorAlert from './ErrorAlert'
 import Loading from './Loading'
@@ -36,6 +41,15 @@ function MeetingDetails({ meetingId }) {
   // A unique prefix for the ids of the radio buttons, which their labels
   // point to
   const choiceId = useId()
+  // true while the window that asks to confirm the deletion is open
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // true while the delete request is running
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
+  // A function that goes to another page of the app, like a click on a Link
+  const navigate = useNavigate()
+  // No new request may start while one of these is running
+  const busy = reprocessing || deleting
 
   // false when the meeting is not loaded yet or is not being processed
   const inProgress = meeting !== null && isInProgress(meeting.status)
@@ -148,6 +162,26 @@ function MeetingDetails({ meetingId }) {
     setReprocessing(false)
   }
 
+  async function handleDeleteConfirmed() {
+    setConfirmingDelete(false)
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteMeeting(meetingId)
+    } catch (error) {
+      setDeleteError(getErrorMessage(error, 'Could not delete the interview'))
+      setDeleting(false)
+      // 409: the processing has been started meanwhile (e.g. from another
+      // tab), so the details are loaded again to show its status
+      if (error.response?.status === 409) {
+        setAttempt(attempt + 1)
+      }
+      return
+    }
+    // The interview is gone, so there is nothing left to show here
+    navigate('/')
+  }
+
   return (
     <div className="card shadow-sm">
       <div className="card-header bg-white d-flex justify-content-between align-items-center gap-3 py-3">
@@ -162,7 +196,9 @@ function MeetingDetails({ meetingId }) {
             <h2 className="h5 mb-0">Interview details</h2>
           )}
         </div>
-        <div className="d-flex gap-2">
+        {/* flex-wrap: on a narrow screen the buttons go into two rows
+            instead of pushing the page wider */}
+        <div className="d-flex flex-wrap justify-content-end gap-2">
           {/* A processed interview can be processed again, e.g. after the
               prompt has been improved. A failed one has "Try again" below */}
           {meeting?.status === 'done' && (
@@ -170,9 +206,21 @@ function MeetingDetails({ meetingId }) {
               type="button"
               className="btn btn-outline-secondary text-nowrap"
               onClick={handleReprocessClick}
-              disabled={reprocessing}
+              disabled={busy}
             >
               {reprocessing ? 'Starting...' : 'Process again'}
+            </button>
+          )}
+          {/* Not while the interview is being processed: the backend would
+              refuse it (409), because the processing still needs its files */}
+          {meeting && !inProgress && (
+            <button
+              type="button"
+              className="btn btn-outline-danger text-nowrap"
+              onClick={() => setConfirmingDelete(true)}
+              disabled={busy}
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
             </button>
           )}
           <Link to="/" className="btn btn-outline-secondary">
@@ -192,6 +240,11 @@ function MeetingDetails({ meetingId }) {
             {reprocessError && meeting.status !== 'failed' && (
               <div className="alert alert-danger" role="alert">
                 {reprocessError}
+              </div>
+            )}
+            {deleteError && (
+              <div className="alert alert-danger" role="alert">
+                {deleteError}
               </div>
             )}
             {inProgress && (
@@ -220,7 +273,7 @@ function MeetingDetails({ meetingId }) {
                   type="button"
                   className="btn btn-outline-danger btn-sm"
                   onClick={handleReprocessClick}
-                  disabled={reprocessing}
+                  disabled={busy}
                 >
                   {reprocessing ? 'Starting...' : 'Try again'}
                 </button>
@@ -308,6 +361,20 @@ function MeetingDetails({ meetingId }) {
               </p>
             ))}
         </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete the interview?"
+        confirmLabel="Delete"
+        danger
+        onConfirm={handleDeleteConfirmed}
+        onCancel={() => setConfirmingDelete(false)}
+      >
+        <p className="mb-0">
+          The interview is deleted together with its video, transcript and
+          summary. This cannot be undone.
+        </p>
       </ConfirmDialog>
     </div>
   )
